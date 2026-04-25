@@ -122,6 +122,8 @@ type NonceResponse struct {
 
 // SafeDeployedResponse reports whether a Safe wallet is deployed.
 type SafeDeployedResponse struct {
+	// Address is the Safe wallet address queried.
+	Address string `json:"address,omitempty"`
 	// Deployed is true when the Safe is deployed.
 	Deployed bool `json:"deployed"`
 }

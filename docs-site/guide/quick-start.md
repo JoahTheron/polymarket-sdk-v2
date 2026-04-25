@@ -17,8 +17,8 @@ func main() {
     client := clob.NewClient("") // uses CLOB v2 host by default
 
     // Get a specific market
-    info, err := client.GetClobMarketInfo(context.Background(), "0x1a2b3c")
-    if err != nil {
+    info := clob.ClobMarketInfo{ConditionID: "0x1a2b3c"}
+    if err := client.GetClobMarketInfo(context.Background(), &info); err != nil {
         panic(err)
     }
     fmt.Printf("Market: %s\n", info.ConditionID)
@@ -55,7 +55,8 @@ positions, err := dataClient.GetPositions(ctx, data.PositionParams{
 import "github.com/bububa/polymarket-client/gamma"
 
 gammaClient := gamma.New(gamma.Config{})
-results, err := gammaClient.Search(ctx, "election 2024")
+var results gamma.SearchResults
+err := gammaClient.Search(ctx, "election 2024", &results)
 ```
 
 ## 4. Place an Order (Auth Required)

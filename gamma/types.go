@@ -9,7 +9,7 @@ import (
 
 // Market describes a Gamma market.
 type Market struct {
-	ID                      pmtypes.String       `json:"id"`
+	ID                      pmtypes.Int          `json:"id"`
 	Question                string               `json:"question"`
 	ConditionID             string               `json:"conditionId"`
 	Slug                    string               `json:"slug"`
@@ -37,8 +37,8 @@ type Market struct {
 	UpdatedAt               pmtypes.Time         `json:"updatedAt"`
 	CreationDate            pmtypes.Time         `json:"creationDate"`
 	PublishedAt             pmtypes.Time         `json:"published_at"`
-	CreatedBy               string               `json:"createdBy"`
-	UpdatedBy               string               `json:"updatedBy"`
+	CreatedBy               pmtypes.Int          `json:"createdBy"`
+	UpdatedBy               pmtypes.Int          `json:"updatedBy"`
 	Ready                   bool                 `json:"ready"`
 	Funded                  bool                 `json:"funded"`
 	AcceptingOrders         bool                 `json:"acceptingOrders"`
@@ -46,14 +46,14 @@ type Market struct {
 	EnableOrderBook         bool                 `json:"enableOrderBook"`
 	MinimumOrderSize        pmtypes.Float64      `json:"minimumOrderSize"`
 	MinimumTickSize         pmtypes.Float64      `json:"minimumTickSize"`
-	QuestionID              string               `json:"questionID"`
+	QuestionID              pmtypes.String       `json:"questionID"`
 	FPmm                    string               `json:"fpmm"`
 	MakerBaseFee            pmtypes.Float64      `json:"makerBaseFee"`
 	TakerBaseFee            pmtypes.Float64      `json:"takerBaseFee"`
 	NotificationsEnabled    bool                 `json:"notificationsEnabled"`
 	NegRisk                 bool                 `json:"negRisk"`
-	NegRiskMarketID         string               `json:"negRiskMarketID"`
-	NegRiskRequestID        string               `json:"negRiskRequestID"`
+	NegRiskMarketID         pmtypes.String       `json:"negRiskMarketID"`
+	NegRiskRequestID        pmtypes.String       `json:"negRiskRequestID"`
 	Competitive             pmtypes.Float64      `json:"competitive"`
 	RewardsMinSize          pmtypes.Float64      `json:"rewardsMinSize"`
 	RewardsMaxSpread        pmtypes.Float64      `json:"rewardsMaxSpread"`
@@ -93,7 +93,7 @@ type Market struct {
 
 // Event describes a Gamma event.
 type Event struct {
-	ID                pmtypes.String  `json:"id"`
+	ID                pmtypes.Int     `json:"id"`
 	Ticker            string          `json:"ticker"`
 	Slug              string          `json:"slug"`
 	Title             string          `json:"title"`
@@ -122,8 +122,8 @@ type Event struct {
 	PublishedAt       pmtypes.Time    `json:"published_at"`
 	CreatedAt         pmtypes.Time    `json:"createdAt"`
 	UpdatedAt         pmtypes.Time    `json:"updatedAt"`
-	CreatedBy         string          `json:"createdBy"`
-	UpdatedBy         string          `json:"updatedBy"`
+	CreatedBy         pmtypes.Int     `json:"createdBy"`
+	UpdatedBy         pmtypes.Int     `json:"updatedBy"`
 	Competitive       pmtypes.Float64 `json:"competitive"`
 	Volume24hr        pmtypes.Float64 `json:"volume24hr"`
 	Volume1wk         pmtypes.Float64 `json:"volume1wk"`
@@ -140,7 +140,7 @@ type Event struct {
 
 // Series describes a Gamma series.
 type Series struct {
-	ID          pmtypes.String  `json:"id"`
+	ID          pmtypes.Int     `json:"id"`
 	Ticker      string          `json:"ticker"`
 	Slug        string          `json:"slug"`
 	Title       string          `json:"title"`
@@ -164,7 +164,7 @@ type Series struct {
 
 // Tag describes a Gamma tag.
 type Tag struct {
-	ID          pmtypes.String  `json:"id"`
+	ID          pmtypes.Int     `json:"id"`
 	Label       string          `json:"label"`
 	Slug        string          `json:"slug"`
 	ForceShow   bool            `json:"forceShow"`
@@ -176,15 +176,15 @@ type Tag struct {
 
 // TagRelationship describes a ranked relationship between two tags.
 type TagRelationship struct {
-	ID           pmtypes.String `json:"id"`
-	TagID        pmtypes.Int    `json:"tagID"`
-	RelatedTagID pmtypes.Int    `json:"relatedTagID"`
-	Rank         pmtypes.Int    `json:"rank"`
+	ID           pmtypes.Int `json:"id"`
+	TagID        pmtypes.Int `json:"tagID"`
+	RelatedTagID pmtypes.Int `json:"relatedTagID"`
+	Rank         pmtypes.Int `json:"rank"`
 }
 
 // Reward describes a Gamma market reward configuration.
 type Reward struct {
-	ID           pmtypes.String  `json:"id"`
+	ID           pmtypes.Int     `json:"id"`
 	AssetAddress string          `json:"assetAddress"`
 	StartDate    pmtypes.Time    `json:"startDate"`
 	EndDate      pmtypes.Time    `json:"endDate"`
@@ -203,41 +203,41 @@ type SearchResults struct {
 
 // SportsMetadata describes a sport.
 type SportsMetadata struct {
-	ID        pmtypes.String `json:"id"`
-	Name      string         `json:"name"`
-	Slug      string         `json:"slug"`
-	Label     string         `json:"label"`
-	TagID     pmtypes.Int    `json:"tagId"`
-	CreatedAt pmtypes.Time   `json:"createdAt"`
-	Image     string         `json:"image"`
+	ID        pmtypes.Int  `json:"id"`
+	Name      string       `json:"name"`
+	Slug      string       `json:"slug"`
+	Label     string       `json:"label"`
+	TagID     pmtypes.Int  `json:"tagId"`
+	CreatedAt pmtypes.Time `json:"createdAt"`
+	Image     string       `json:"image"`
 }
 
 // Team describes a sports team.
 type Team struct {
-	ID           pmtypes.String `json:"id"`
-	Name         string         `json:"name"`
-	Sport        string         `json:"sport"`
-	Logo         string         `json:"logo"`
-	Abbreviation string         `json:"abbreviation"`
-	Image        string         `json:"image"`
-	CreatedAt    pmtypes.Time   `json:"createdAt"`
-	UpdatedAt    pmtypes.Time   `json:"updatedAt"`
+	ID           pmtypes.Int  `json:"id"`
+	Name         string       `json:"name"`
+	Sport        string       `json:"sport"`
+	Logo         string       `json:"logo"`
+	Abbreviation string       `json:"abbreviation"`
+	Image        string       `json:"image"`
+	CreatedAt    pmtypes.Time `json:"createdAt"`
+	UpdatedAt    pmtypes.Time `json:"updatedAt"`
 }
 
 // Comment describes a Gamma comment.
 type Comment struct {
-	ID              pmtypes.String  `json:"id"`
+	ID              pmtypes.Int     `json:"id"`
 	Body            string          `json:"body"`
 	User            string          `json:"user"`
 	Address         string          `json:"address"`
 	CreatedAt       pmtypes.Time    `json:"createdAt"`
 	UpdatedAt       pmtypes.Time    `json:"updatedAt"`
 	Deleted         bool            `json:"deleted"`
-	ParentID        pmtypes.String  `json:"parentId"`
-	RootID          pmtypes.String  `json:"rootId"`
+	ParentID        pmtypes.Int     `json:"parentId"`
+	RootID          pmtypes.Int     `json:"rootId"`
 	Depth           pmtypes.Int     `json:"depth"`
 	Market          string          `json:"market"`
-	EventID         pmtypes.String  `json:"eventId"`
+	EventID         pmtypes.Int     `json:"eventId"`
 	ReportCount     pmtypes.Int     `json:"reportCount"`
 	ReactionCount   pmtypes.Int     `json:"reactionCount"`
 	ProfileImage    string          `json:"profileImage"`
@@ -353,9 +353,9 @@ type MarketFilterParams struct {
 	// Ascending sets the sort direction.
 	Ascending *bool
 	// TagID filters by tag ID.
-	TagID string
+	TagID int
 	// EventID filters by event ID.
-	EventID string
+	EventID int
 	// Slug filters by market slug.
 	Slug string
 	// NegativeRisk filters by neg-risk status.
@@ -379,8 +379,8 @@ func (p MarketFilterParams) appendQuery(q url.Values) {
 	setInt(q, "offset", p.Offset)
 	setString(q, "order", p.Order)
 	setBool(q, "ascending", p.Ascending)
-	setString(q, "tag_id", p.TagID)
-	setString(q, "event_id", p.EventID)
+	setInt(q, "tag_id", p.TagID)
+	setInt(q, "event_id", p.EventID)
 	setString(q, "slug", p.Slug)
 	setBool(q, "negative_risk", p.NegativeRisk)
 	setBool(q, "accepting_orders", p.AcceptingOrders)
@@ -413,7 +413,7 @@ type SeriesFilterParams struct {
 	// Slug filters by series slug.
 	Slug string
 	// TagID filters by tag ID.
-	TagID string
+	TagID int
 	// Ascending sets the sort direction.
 	Ascending *bool
 	// Order sets the sort field.
@@ -427,7 +427,7 @@ func (p SeriesFilterParams) appendQuery(q url.Values) {
 	setBool(q, "closed", p.Closed)
 	setBool(q, "archived", p.Archived)
 	setString(q, "slug", p.Slug)
-	setString(q, "tag_id", p.TagID)
+	setInt(q, "tag_id", p.TagID)
 	setBool(q, "ascending", p.Ascending)
 	setString(q, "order", p.Order)
 }
@@ -460,7 +460,7 @@ type CommentFilterParams struct {
 	// Market filters by condition ID.
 	Market string
 	// EventID filters by event ID.
-	EventID string
+	EventID int
 	// User filters by user wallet address.
 	User string
 }
@@ -469,6 +469,6 @@ func (p CommentFilterParams) appendQuery(q url.Values) {
 	setInt(q, "limit", p.Limit)
 	setInt(q, "offset", p.Offset)
 	setString(q, "market", p.Market)
-	setString(q, "event_id", p.EventID)
+	setInt(q, "event_id", p.EventID)
 	setString(q, "user", p.User)
 }

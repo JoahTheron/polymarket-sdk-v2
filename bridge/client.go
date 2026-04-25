@@ -42,27 +42,22 @@ func New(config Config) *Client {
 // Host returns the configured Bridge API host.
 func (c *Client) Host() string { return c.host }
 
-func (c *Client) GetSupportedAssets(ctx context.Context) (*SupportedAssetsResponse, error) {
-	var out SupportedAssetsResponse
-	return &out, c.http.GetJSON(ctx, "/supported-assets", nil, polyhttp.AuthNone, &out)
+func (c *Client) GetSupportedAssets(ctx context.Context, out *SupportedAssetsResponse) error {
+	return c.http.GetJSON(ctx, "/supported-assets", nil, polyhttp.AuthNone, out)
 }
 
-func (c *Client) CreateDepositAddress(ctx context.Context, address string) (*DepositResponse, error) {
-	var out DepositResponse
-	return &out, c.http.PostJSON(ctx, "/deposit", DepositRequest{Address: address}, polyhttp.AuthNone, &out)
+func (c *Client) CreateDepositAddress(ctx context.Context, address string, out *DepositResponse) error {
+	return c.http.PostJSON(ctx, "/deposit", DepositRequest{Address: address}, polyhttp.AuthNone, out)
 }
 
-func (c *Client) GetStatus(ctx context.Context, address string) (*StatusResponse, error) {
-	var out StatusResponse
-	return &out, c.http.GetJSON(ctx, "/status/"+address, nil, polyhttp.AuthNone, &out)
+func (c *Client) GetStatus(ctx context.Context, address string, out *StatusResponse) error {
+	return c.http.GetJSON(ctx, "/status/"+address, nil, polyhttp.AuthNone, out)
 }
 
-func (c *Client) GetQuote(ctx context.Context, req QuoteRequest) (*QuoteResponse, error) {
-	var out QuoteResponse
-	return &out, c.http.PostJSON(ctx, "/quote", req, polyhttp.AuthNone, &out)
+func (c *Client) GetQuote(ctx context.Context, req QuoteRequest, out *QuoteResponse) error {
+	return c.http.PostJSON(ctx, "/quote", req, polyhttp.AuthNone, out)
 }
 
-func (c *Client) Withdraw(ctx context.Context, req WithdrawRequest) (*WithdrawResponse, error) {
-	var out WithdrawResponse
-	return &out, c.http.PostJSON(ctx, "/withdraw", req, polyhttp.AuthNone, &out)
+func (c *Client) Withdraw(ctx context.Context, req WithdrawRequest, out *WithdrawResponse) error {
+	return c.http.PostJSON(ctx, "/withdraw", req, polyhttp.AuthNone, out)
 }

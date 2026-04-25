@@ -11,7 +11,8 @@
 //	client := gamma.New(gamma.Config{})  // defaults to gamma-api.polymarket.com
 //
 //	// Search markets, events, profiles
-//	results, _ := client.Search(ctx, "election")
+//	var results gamma.SearchResults
+//	client.Search(ctx, "election", &results)
 //
 //	// Get events and markets
 //	events, _ := client.GetEvents(ctx, gamma.EventFilterParams{Active: truePtr})
@@ -19,10 +20,11 @@
 //
 //	// Tags and related content
 //	tags, _ := client.GetTags(ctx)
-//	related, _ := client.GetRelatedTags(ctx, "tag-id", gamma.RelatedTagParams{})
+//	related, _ := client.GetRelatedTags(ctx, 12, gamma.RelatedTagParams{})
 //
 //	// Public profiles and comments
-//	profile, _ := client.GetPublicProfile(ctx, "0x...")
+//	profile := gamma.PublicProfile{Address: "0x..."}
+//	client.GetPublicProfile(ctx, &profile)
 //	comments, _ := client.GetComments(ctx, gamma.CommentFilterParams{})
 //
 // Default host: https://gamma-api.polymarket.com

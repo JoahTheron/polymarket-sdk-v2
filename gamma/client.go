@@ -2,6 +2,7 @@ package gamma
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -9,6 +10,8 @@ import (
 
 	"github.com/bububa/polymarket-client/internal/polyhttp"
 )
+
+var errMissingIdentifier = errors.New("polymarket: missing identifier on output value")
 
 const DefaultHost = "https://gamma-api.polymarket.com"
 
@@ -44,16 +47,26 @@ func New(config Config) *Client {
 // Host returns the configured Gamma API host.
 func (c *Client) Host() string { return c.host }
 
-// GetMarket returns a market by ID.
-func (c *Client) GetMarket(ctx context.Context, id string) (*Market, error) {
-	var out Market
-	return &out, c.http.GetJSON(ctx, "/markets/"+id, nil, polyhttp.AuthNone, &out)
+// GetMarket writes a market into out using out.ID, or out.Slug when ID is empty.
+func (c *Client) GetMarket(ctx context.Context, out *Market) error {
+	if out == nil {
+		return errMissingIdentifier
+	}
+	if out.ID != 0 {
+		return c.http.GetJSON(ctx, "/markets/"+strconv.Itoa(int(out.ID)), nil, polyhttp.AuthNone, out)
+	}
+	if out.Slug != "" {
+		return c.GetMarketBySlug(ctx, out)
+	}
+	return errMissingIdentifier
 }
 
-// GetMarketBySlug returns a market by slug.
-func (c *Client) GetMarketBySlug(ctx context.Context, slug string) (*Market, error) {
-	var out Market
-	return &out, c.http.GetJSON(ctx, "/markets/slug/"+slug, nil, polyhttp.AuthNone, &out)
+// GetMarketBySlug writes a market by out.Slug into out.
+func (c *Client) GetMarketBySlug(ctx context.Context, out *Market) error {
+	if out == nil || out.Slug == "" {
+		return errMissingIdentifier
+	}
+	return c.http.GetJSON(ctx, "/markets/slug/"+out.Slug, nil, polyhttp.AuthNone, out)
 }
 
 // GetMarkets returns markets matching params.
@@ -62,16 +75,26 @@ func (c *Client) GetMarkets(ctx context.Context, params MarketFilterParams) ([]M
 	return out, c.http.GetJSON(ctx, "/markets", filterValues(params), polyhttp.AuthNone, &out)
 }
 
-// GetEvent returns an event by ID.
-func (c *Client) GetEvent(ctx context.Context, id string) (*Event, error) {
-	var out Event
-	return &out, c.http.GetJSON(ctx, "/events/"+id, nil, polyhttp.AuthNone, &out)
+// GetEvent writes an event into out using out.ID, or out.Slug when ID is empty.
+func (c *Client) GetEvent(ctx context.Context, out *Event) error {
+	if out == nil {
+		return errMissingIdentifier
+	}
+	if out.ID != 0 {
+		return c.http.GetJSON(ctx, "/events/"+strconv.Itoa(int(out.ID)), nil, polyhttp.AuthNone, out)
+	}
+	if out.Slug != "" {
+		return c.GetEventBySlug(ctx, out)
+	}
+	return errMissingIdentifier
 }
 
-// GetEventBySlug returns an event by slug.
-func (c *Client) GetEventBySlug(ctx context.Context, slug string) (*Event, error) {
-	var out Event
-	return &out, c.http.GetJSON(ctx, "/events/slug/"+slug, nil, polyhttp.AuthNone, &out)
+// GetEventBySlug writes an event by out.Slug into out.
+func (c *Client) GetEventBySlug(ctx context.Context, out *Event) error {
+	if out == nil || out.Slug == "" {
+		return errMissingIdentifier
+	}
+	return c.http.GetJSON(ctx, "/events/slug/"+out.Slug, nil, polyhttp.AuthNone, out)
 }
 
 // GetEvents returns events matching params.
@@ -80,15 +103,14 @@ func (c *Client) GetEvents(ctx context.Context, params EventFilterParams) ([]Eve
 	return out, c.http.GetJSON(ctx, "/events", filterValues(params), polyhttp.AuthNone, &out)
 }
 
-// Search searches markets, events, and public profiles.
-func (c *Client) Search(ctx context.Context, query string) (*SearchResults, error) {
-	var out SearchResults
-	return &out, c.http.GetJSON(ctx, "/public-search", url.Values{"q": []string{query}}, polyhttp.AuthNone, &out)
+// Search writes market, event, and public-profile matches into out.
+func (c *Client) Search(ctx context.Context, query string, out *SearchResults) error {
+	return c.http.GetJSON(ctx, "/public-search", url.Values{"q": []string{query}}, polyhttp.AuthNone, out)
 }
 
-// PublicSearch searches markets, events, and public profiles.
-func (c *Client) PublicSearch(ctx context.Context, query string) (*SearchResults, error) {
-	return c.Search(ctx, query)
+// PublicSearch writes market, event, and public-profile matches into out.
+func (c *Client) PublicSearch(ctx context.Context, query string, out *SearchResults) error {
+	return c.Search(ctx, query, out)
 }
 
 // ListSeries returns series matching params.
@@ -97,10 +119,12 @@ func (c *Client) ListSeries(ctx context.Context, params SeriesFilterParams) ([]S
 	return out, c.http.GetJSON(ctx, "/series", filterValues(params), polyhttp.AuthNone, &out)
 }
 
-// GetSeries returns a series by ID.
-func (c *Client) GetSeries(ctx context.Context, id string) (*Series, error) {
-	var out Series
-	return &out, c.http.GetJSON(ctx, "/series/"+id, nil, polyhttp.AuthNone, &out)
+// GetSeries writes a series by out.ID into out.
+func (c *Client) GetSeries(ctx context.Context, out *Series) error {
+	if out == nil || out.ID == 0 {
+		return errMissingIdentifier
+	}
+	return c.http.GetJSON(ctx, "/series/"+strconv.Itoa(int(out.ID)), nil, polyhttp.AuthNone, out)
 }
 
 // GetTags returns all tags.
@@ -109,22 +133,32 @@ func (c *Client) GetTags(ctx context.Context) ([]Tag, error) {
 	return out, c.http.GetJSON(ctx, "/tags", nil, polyhttp.AuthNone, &out)
 }
 
-// GetTag returns a tag by ID.
-func (c *Client) GetTag(ctx context.Context, id string) (*Tag, error) {
-	var out Tag
-	return &out, c.http.GetJSON(ctx, "/tags/"+id, nil, polyhttp.AuthNone, &out)
+// GetTag writes a tag into out using out.ID, or out.Slug when ID is empty.
+func (c *Client) GetTag(ctx context.Context, out *Tag) error {
+	if out == nil {
+		return errMissingIdentifier
+	}
+	if out.ID != 0 {
+		return c.http.GetJSON(ctx, "/tags/"+strconv.Itoa(int(out.ID)), nil, polyhttp.AuthNone, out)
+	}
+	if out.Slug != "" {
+		return c.GetTagBySlug(ctx, out)
+	}
+	return errMissingIdentifier
 }
 
-// GetTagBySlug returns a tag by slug.
-func (c *Client) GetTagBySlug(ctx context.Context, slug string) (*Tag, error) {
-	var out Tag
-	return &out, c.http.GetJSON(ctx, "/tags/slug/"+slug, nil, polyhttp.AuthNone, &out)
+// GetTagBySlug writes a tag by out.Slug into out.
+func (c *Client) GetTagBySlug(ctx context.Context, out *Tag) error {
+	if out == nil || out.Slug == "" {
+		return errMissingIdentifier
+	}
+	return c.http.GetJSON(ctx, "/tags/slug/"+out.Slug, nil, polyhttp.AuthNone, out)
 }
 
 // GetRelatedTagRelationships returns ranked related-tag relationships for a tag ID.
-func (c *Client) GetRelatedTagRelationships(ctx context.Context, id string, params RelatedTagParams) ([]TagRelationship, error) {
+func (c *Client) GetRelatedTagRelationships(ctx context.Context, id int, params RelatedTagParams) ([]TagRelationship, error) {
 	var out []TagRelationship
-	return out, c.http.GetJSON(ctx, "/tags/"+id+"/related-tags", filterValues(params), polyhttp.AuthNone, &out)
+	return out, c.http.GetJSON(ctx, "/tags/"+strconv.Itoa(id)+"/related-tags", filterValues(params), polyhttp.AuthNone, &out)
 }
 
 // GetRelatedTagRelationshipsBySlug returns ranked related-tag relationships for a tag slug.
@@ -134,15 +168,15 @@ func (c *Client) GetRelatedTagRelationshipsBySlug(ctx context.Context, slug stri
 }
 
 // GetRelatedTags returns related Tag records for a tag ID.
-func (c *Client) GetRelatedTags(ctx context.Context, id string, params RelatedTagParams) ([]Tag, error) {
+func (c *Client) GetRelatedTags(ctx context.Context, id int, params RelatedTagParams) ([]Tag, error) {
 	var out []Tag
-	return out, c.http.GetJSON(ctx, "/tags/"+id+"/tags", filterValues(params), polyhttp.AuthNone, &out)
+	return out, c.http.GetJSON(ctx, "/tags/"+strconv.Itoa(id)+"/related-tags/tags", filterValues(params), polyhttp.AuthNone, &out)
 }
 
 // GetRelatedTagsBySlug returns related Tag records for a tag slug.
 func (c *Client) GetRelatedTagsBySlug(ctx context.Context, slug string, params RelatedTagParams) ([]Tag, error) {
 	var out []Tag
-	return out, c.http.GetJSON(ctx, "/tags/slug/"+slug+"/tags", filterValues(params), polyhttp.AuthNone, &out)
+	return out, c.http.GetJSON(ctx, "/tags/slug/"+slug+"/related-tags/tags", filterValues(params), polyhttp.AuthNone, &out)
 }
 
 // GetSports returns sports metadata.
@@ -151,10 +185,9 @@ func (c *Client) GetSports(ctx context.Context) ([]SportsMetadata, error) {
 	return out, c.http.GetJSON(ctx, "/sports", nil, polyhttp.AuthNone, &out)
 }
 
-// GetValidSportsMarketTypes returns valid sports market types.
-func (c *Client) GetValidSportsMarketTypes(ctx context.Context) (*SportsMarketTypesResponse, error) {
-	var out SportsMarketTypesResponse
-	return &out, c.http.GetJSON(ctx, "/sports/market-types", nil, polyhttp.AuthNone, &out)
+// GetValidSportsMarketTypes writes valid sports market types into out.
+func (c *Client) GetValidSportsMarketTypes(ctx context.Context, out *SportsMarketTypesResponse) error {
+	return c.http.GetJSON(ctx, "/sports/market-types", nil, polyhttp.AuthNone, out)
 }
 
 // GetTeams returns sports teams.
@@ -170,9 +203,9 @@ func (c *Client) GetComments(ctx context.Context, params CommentFilterParams) ([
 }
 
 // GetComment returns comments for a comment ID.
-func (c *Client) GetComment(ctx context.Context, id string) ([]Comment, error) {
+func (c *Client) GetComment(ctx context.Context, id int) ([]Comment, error) {
 	var out []Comment
-	return out, c.http.GetJSON(ctx, "/comments/"+id, nil, polyhttp.AuthNone, &out)
+	return out, c.http.GetJSON(ctx, "/comments/"+strconv.Itoa(id), nil, polyhttp.AuthNone, &out)
 }
 
 // GetCommentsByUserAddress returns comments for a user wallet address.
@@ -181,10 +214,12 @@ func (c *Client) GetCommentsByUserAddress(ctx context.Context, address string) (
 	return out, c.http.GetJSON(ctx, "/comments/user/"+address, nil, polyhttp.AuthNone, &out)
 }
 
-// GetPublicProfile returns a public profile by wallet address.
-func (c *Client) GetPublicProfile(ctx context.Context, address string) (*PublicProfile, error) {
-	var out PublicProfile
-	return &out, c.http.GetJSON(ctx, "/public-profile/"+address, nil, polyhttp.AuthNone, &out)
+// GetPublicProfile writes a public profile by out.Address into out.
+func (c *Client) GetPublicProfile(ctx context.Context, out *PublicProfile) error {
+	if out == nil || out.Address == "" {
+		return errMissingIdentifier
+	}
+	return c.http.GetJSON(ctx, "/public-profile/"+out.Address, nil, polyhttp.AuthNone, out)
 }
 
 func filterValues(params interface{ appendQuery(url.Values) }) url.Values {

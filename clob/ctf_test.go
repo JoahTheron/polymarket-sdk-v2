@@ -23,11 +23,12 @@ func TestBuildSplitPositionTx(t *testing.T) {
 		t.Fatal(err)
 	}
 	client := NewClient("")
-	tx, err := client.BuildSplitPositionTx(SplitBinary(
+	var tx CTFTransaction
+	err = client.BuildSplitPositionTx(SplitBinary(
 		contracts.Collateral,
 		common.HexToHash("0x1234"),
 		big.NewInt(1_000_000),
-	))
+	), &tx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,15 +48,17 @@ type captureRelayer struct {
 	req relayer.SubmitTransactionRequest
 }
 
-func (r *captureRelayer) SubmitTransaction(_ context.Context, req relayer.SubmitTransactionRequest) (*relayer.SubmitTransactionResponse, error) {
+func (r *captureRelayer) SubmitTransaction(_ context.Context, req relayer.SubmitTransactionRequest, out *relayer.SubmitTransactionResponse) error {
 	r.req = req
-	return &relayer.SubmitTransactionResponse{TransactionID: "tx-1", State: "STATE_NEW"}, nil
+	*out = relayer.SubmitTransactionResponse{TransactionID: "tx-1", State: "STATE_NEW"}
+	return nil
 }
 
 func TestSubmitCTFRelayerTransaction(t *testing.T) {
 	capture := &captureRelayer{}
 	client := NewClient("", WithRelayerSubmitter(capture))
-	resp, err := client.SubmitCTFRelayerTransaction(context.Background(), &CTFTransaction{
+	var resp relayer.SubmitTransactionResponse
+	err := client.SubmitCTFRelayerTransaction(context.Background(), &CTFTransaction{
 		To:   common.HexToAddress("0x0000000000000000000000000000000000000001"),
 		Data: []byte{0x12, 0x34},
 	}, RelayerCTFRequest{
@@ -64,7 +67,7 @@ func TestSubmitCTFRelayerTransaction(t *testing.T) {
 		Nonce:       "7",
 		Signature:   "0xsig",
 		Type:        "SAFE",
-	})
+	}, &resp)
 	if err != nil {
 		t.Fatal(err)
 	}
