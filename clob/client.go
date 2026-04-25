@@ -17,6 +17,8 @@ import (
 	"github.com/bububa/polymarket-client/relayer"
 )
 
+var errMissingIdentifier = errors.New("polymarket: missing identifier on output value")
+
 type Client struct {
 	host          string
 	geoblock      string
@@ -29,7 +31,7 @@ type Client struct {
 
 // RelayerSubmitter is the relayer capability used by CLOB CTF helpers.
 type RelayerSubmitter interface {
-	SubmitTransaction(context.Context, relayer.SubmitTransactionRequest) (*relayer.SubmitTransactionResponse, error)
+	SubmitTransaction(context.Context, relayer.SubmitTransactionRequest, *relayer.SubmitTransactionResponse) error
 }
 
 // Option customizes a CLOB client created by NewClient.
@@ -106,11 +108,11 @@ func NewClient(host string, opts ...Option) *Client {
 func (c *Client) Host() string { return c.host }
 
 // SubmitRelayerTransaction submits a pre-signed transaction through the configured relayer.
-func (c *Client) SubmitRelayerTransaction(ctx context.Context, req relayer.SubmitTransactionRequest) (*relayer.SubmitTransactionResponse, error) {
+func (c *Client) SubmitRelayerTransaction(ctx context.Context, req relayer.SubmitTransactionRequest, out *relayer.SubmitTransactionResponse) error {
 	if c.relayerClient == nil {
-		return nil, errors.New("polymarket: relayer client is not configured")
+		return errors.New("polymarket: relayer client is not configured")
 	}
-	return c.relayerClient.SubmitTransaction(ctx, req)
+	return c.relayerClient.SubmitTransaction(ctx, req, out)
 }
 
 type APIError struct {
@@ -146,45 +148,53 @@ func (c *Client) GetServerTime(ctx context.Context) (int64, error) {
 	return scalarInt64(raw)
 }
 
-func (c *Client) GetSamplingSimplifiedMarkets(ctx context.Context, cursor string) (*Page[SimplifiedMarket], error) {
-	var out Page[SimplifiedMarket]
-	return &out, c.getPage(ctx, "/sampling-simplified-markets", cursor, &out)
+func (c *Client) GetSamplingSimplifiedMarkets(ctx context.Context, cursor string, out *Page[SimplifiedMarket]) error {
+	return c.getPage(ctx, "/sampling-simplified-markets", cursor, out)
 }
 
-func (c *Client) GetSamplingMarkets(ctx context.Context, cursor string) (*Page[Market], error) {
-	var out Page[Market]
-	return &out, c.getPage(ctx, "/sampling-markets", cursor, &out)
+func (c *Client) GetSamplingMarkets(ctx context.Context, cursor string, out *Page[Market]) error {
+	return c.getPage(ctx, "/sampling-markets", cursor, out)
 }
 
-func (c *Client) GetSimplifiedMarkets(ctx context.Context, cursor string) (*Page[SimplifiedMarket], error) {
-	var out Page[SimplifiedMarket]
-	return &out, c.getPage(ctx, "/simplified-markets", cursor, &out)
+func (c *Client) GetSimplifiedMarkets(ctx context.Context, cursor string, out *Page[SimplifiedMarket]) error {
+	return c.getPage(ctx, "/simplified-markets", cursor, out)
 }
 
-func (c *Client) GetMarkets(ctx context.Context, cursor string) (*Page[Market], error) {
-	var out Page[Market]
-	return &out, c.getPage(ctx, "/markets", cursor, &out)
+func (c *Client) GetMarkets(ctx context.Context, cursor string, out *Page[Market]) error {
+	return c.getPage(ctx, "/markets", cursor, out)
 }
 
-func (c *Client) GetMarket(ctx context.Context, conditionID string) (*Market, error) {
-	var out Market
-	return &out, c.do(ctx, http.MethodGet, "/markets/"+url.PathEscape(conditionID), nil, nil, 0, &out)
+func (c *Client) GetMarket(ctx context.Context, out *Market) error {
+	if out == nil || out.ConditionID == "" {
+		return errMissingIdentifier
+	}
+	return c.do(ctx, http.MethodGet, "/markets/"+url.PathEscape(out.ConditionID), nil, nil, 0, out)
 }
 
-func (c *Client) GetMarketByToken(ctx context.Context, tokenID string) (*MarketByToken, error) {
-	var out MarketByToken
-	return &out, c.do(ctx, http.MethodGet, "/markets-by-token/"+url.PathEscape(tokenID), nil, nil, 0, &out)
+func (c *Client) GetMarketByToken(ctx context.Context, out *MarketByToken) error {
+	if out == nil || (out.PrimaryTokenID == "" && out.SecondaryTokenID == "") {
+		return errMissingIdentifier
+	}
+	tokenID := out.PrimaryTokenID.String()
+	if tokenID == "" {
+		tokenID = out.SecondaryTokenID.String()
+	}
+	return c.do(ctx, http.MethodGet, "/markets-by-token/"+url.PathEscape(tokenID), nil, nil, 0, out)
 }
 
-func (c *Client) GetClobMarketInfo(ctx context.Context, conditionID string) (*ClobMarketInfo, error) {
-	var out ClobMarketInfo
-	return &out, c.do(ctx, http.MethodGet, "/clob-markets/"+url.PathEscape(conditionID), nil, nil, 0, &out)
+func (c *Client) GetClobMarketInfo(ctx context.Context, out *ClobMarketInfo) error {
+	if out == nil || out.ConditionID == "" {
+		return errMissingIdentifier
+	}
+	return c.do(ctx, http.MethodGet, "/clob-markets/"+url.PathEscape(out.ConditionID), nil, nil, 0, out)
 }
 
-func (c *Client) GetOrderBook(ctx context.Context, tokenID string) (*OrderBookSummary, error) {
-	var out OrderBookSummary
-	q := url.Values{"token_id": []string{tokenID}}
-	return &out, c.do(ctx, http.MethodGet, "/book", q, nil, 0, &out)
+func (c *Client) GetOrderBook(ctx context.Context, out *OrderBookSummary) error {
+	if out == nil || out.AssetID == "" {
+		return errMissingIdentifier
+	}
+	q := url.Values{"token_id": []string{out.AssetID.String()}}
+	return c.do(ctx, http.MethodGet, "/book", q, nil, 0, out)
 }
 
 func (c *Client) GetOrderBooks(ctx context.Context, books []BookParams) ([]OrderBookSummary, error) {
@@ -192,9 +202,8 @@ func (c *Client) GetOrderBooks(ctx context.Context, books []BookParams) ([]Order
 	return out, c.do(ctx, http.MethodPost, "/books", nil, books, 0, &out)
 }
 
-func (c *Client) GetMidpoint(ctx context.Context, tokenID string) (*MidpointResponse, error) {
-	var out MidpointResponse
-	return &out, c.do(ctx, http.MethodGet, "/midpoint", url.Values{"token_id": []string{tokenID}}, nil, 0, &out)
+func (c *Client) GetMidpoint(ctx context.Context, tokenID string, out *MidpointResponse) error {
+	return c.do(ctx, http.MethodGet, "/midpoint", url.Values{"token_id": []string{tokenID}}, nil, 0, out)
 }
 
 func (c *Client) GetMidpoints(ctx context.Context, books []BookParams) (map[string]Float64, error) {
@@ -202,9 +211,8 @@ func (c *Client) GetMidpoints(ctx context.Context, books []BookParams) (map[stri
 	return out, c.do(ctx, http.MethodPost, "/midpoints", nil, books, 0, &out)
 }
 
-func (c *Client) GetPrice(ctx context.Context, tokenID string, side Side) (*PriceResponse, error) {
-	var out PriceResponse
-	return &out, c.do(ctx, http.MethodGet, "/price", url.Values{"token_id": []string{tokenID}, "side": []string{string(side)}}, nil, 0, &out)
+func (c *Client) GetPrice(ctx context.Context, tokenID string, side Side, out *PriceResponse) error {
+	return c.do(ctx, http.MethodGet, "/price", url.Values{"token_id": []string{tokenID}, "side": []string{string(side)}}, nil, 0, out)
 }
 
 func (c *Client) GetPrices(ctx context.Context, books []BookParams) (map[string]map[Side]Float64, error) {
@@ -212,9 +220,8 @@ func (c *Client) GetPrices(ctx context.Context, books []BookParams) (map[string]
 	return out, c.do(ctx, http.MethodPost, "/prices", nil, books, 0, &out)
 }
 
-func (c *Client) GetSpread(ctx context.Context, tokenID string) (*SpreadResponse, error) {
-	var out SpreadResponse
-	return &out, c.do(ctx, http.MethodGet, "/spread", url.Values{"token_id": []string{tokenID}}, nil, 0, &out)
+func (c *Client) GetSpread(ctx context.Context, tokenID string, out *SpreadResponse) error {
+	return c.do(ctx, http.MethodGet, "/spread", url.Values{"token_id": []string{tokenID}}, nil, 0, out)
 }
 
 func (c *Client) GetSpreads(ctx context.Context, books []BookParams) (map[string]Float64, error) {
@@ -222,9 +229,8 @@ func (c *Client) GetSpreads(ctx context.Context, books []BookParams) (map[string
 	return out, c.do(ctx, http.MethodPost, "/spreads", nil, books, 0, &out)
 }
 
-func (c *Client) GetLastTradePrice(ctx context.Context, tokenID string) (*LastTradePriceResponse, error) {
-	var out LastTradePriceResponse
-	return &out, c.do(ctx, http.MethodGet, "/last-trade-price", url.Values{"token_id": []string{tokenID}}, nil, 0, &out)
+func (c *Client) GetLastTradePrice(ctx context.Context, tokenID string, out *LastTradePriceResponse) error {
+	return c.do(ctx, http.MethodGet, "/last-trade-price", url.Values{"token_id": []string{tokenID}}, nil, 0, out)
 }
 
 func (c *Client) GetLastTradesPrices(ctx context.Context, books []BookParams) ([]LastTradesPricesResponse, error) {
@@ -232,39 +238,32 @@ func (c *Client) GetLastTradesPrices(ctx context.Context, books []BookParams) ([
 	return out, c.do(ctx, http.MethodPost, "/last-trades-prices", nil, books, 0, &out)
 }
 
-func (c *Client) GetTickSize(ctx context.Context, tokenID string) (*TickSizeResponse, error) {
-	var out TickSizeResponse
-	return &out, c.do(ctx, http.MethodGet, "/tick-size", url.Values{"token_id": []string{tokenID}}, nil, 0, &out)
+func (c *Client) GetTickSize(ctx context.Context, tokenID string, out *TickSizeResponse) error {
+	return c.do(ctx, http.MethodGet, "/tick-size", url.Values{"token_id": []string{tokenID}}, nil, 0, out)
 }
 
-func (c *Client) GetTickSizeByTokenID(ctx context.Context, tokenID string) (*TickSizeResponse, error) {
-	var out TickSizeResponse
-	return &out, c.do(ctx, http.MethodGet, "/tick-size/"+url.PathEscape(tokenID), nil, nil, 0, &out)
+func (c *Client) GetTickSizeByTokenID(ctx context.Context, tokenID string, out *TickSizeResponse) error {
+	return c.do(ctx, http.MethodGet, "/tick-size/"+url.PathEscape(tokenID), nil, nil, 0, out)
 }
 
-func (c *Client) GetNegRisk(ctx context.Context, tokenID string) (*NegRiskResponse, error) {
-	var out NegRiskResponse
-	return &out, c.do(ctx, http.MethodGet, "/neg-risk", url.Values{"token_id": []string{tokenID}}, nil, 0, &out)
+func (c *Client) GetNegRisk(ctx context.Context, tokenID string, out *NegRiskResponse) error {
+	return c.do(ctx, http.MethodGet, "/neg-risk", url.Values{"token_id": []string{tokenID}}, nil, 0, out)
 }
 
-func (c *Client) GetFeeRate(ctx context.Context, tokenID string) (*FeeRateResponse, error) {
-	var out FeeRateResponse
-	return &out, c.do(ctx, http.MethodGet, "/fee-rate", url.Values{"token_id": []string{tokenID}}, nil, 0, &out)
+func (c *Client) GetFeeRate(ctx context.Context, tokenID string, out *FeeRateResponse) error {
+	return c.do(ctx, http.MethodGet, "/fee-rate", url.Values{"token_id": []string{tokenID}}, nil, 0, out)
 }
 
-func (c *Client) GetFeeRateByTokenID(ctx context.Context, tokenID string) (*FeeRateResponse, error) {
-	var out FeeRateResponse
-	return &out, c.do(ctx, http.MethodGet, "/fee-rate/"+url.PathEscape(tokenID), nil, nil, 0, &out)
+func (c *Client) GetFeeRateByTokenID(ctx context.Context, tokenID string, out *FeeRateResponse) error {
+	return c.do(ctx, http.MethodGet, "/fee-rate/"+url.PathEscape(tokenID), nil, nil, 0, out)
 }
 
-func (c *Client) GetPricesHistory(ctx context.Context, params PriceHistoryParams) (*PriceHistoryResponse, error) {
-	var out PriceHistoryResponse
-	return &out, c.do(ctx, http.MethodGet, "/prices-history", values(params), nil, 0, &out)
+func (c *Client) GetPricesHistory(ctx context.Context, params PriceHistoryParams, out *PriceHistoryResponse) error {
+	return c.do(ctx, http.MethodGet, "/prices-history", values(params), nil, 0, out)
 }
 
-func (c *Client) GetBatchPricesHistory(ctx context.Context, params BatchPriceHistoryParams) (*BatchPriceHistoryResponse, error) {
-	var out BatchPriceHistoryResponse
-	return &out, c.do(ctx, http.MethodPost, "/batch-prices-history", nil, params, 0, &out)
+func (c *Client) GetBatchPricesHistory(ctx context.Context, params BatchPriceHistoryParams, out *BatchPriceHistoryResponse) error {
+	return c.do(ctx, http.MethodPost, "/batch-prices-history", nil, params, 0, out)
 }
 
 func (c *Client) GetCurrentRebates(ctx context.Context, params RebateParams) ([]Rebate, error) {
@@ -272,14 +271,12 @@ func (c *Client) GetCurrentRebates(ctx context.Context, params RebateParams) ([]
 	return out, c.do(ctx, http.MethodGet, "/rebates/current", values(params), nil, 0, &out)
 }
 
-func (c *Client) CreateAPIKey(ctx context.Context, nonce int64) (*Credentials, error) {
-	var out Credentials
-	return &out, c.do(ctx, http.MethodPost, "/auth/api-key", nil, nil, 1, &out, nonce)
+func (c *Client) CreateAPIKey(ctx context.Context, nonce int64, out *Credentials) error {
+	return c.do(ctx, http.MethodPost, "/auth/api-key", nil, nil, 1, out, nonce)
 }
 
-func (c *Client) DeriveAPIKey(ctx context.Context, nonce int64) (*Credentials, error) {
-	var out Credentials
-	return &out, c.do(ctx, http.MethodGet, "/auth/derive-api-key", nil, nil, 1, &out, nonce)
+func (c *Client) DeriveAPIKey(ctx context.Context, nonce int64, out *Credentials) error {
+	return c.do(ctx, http.MethodGet, "/auth/derive-api-key", nil, nil, 1, out, nonce)
 }
 
 func (c *Client) GetAPIKeys(ctx context.Context) ([]Credentials, error) {
@@ -291,14 +288,15 @@ func (c *Client) DeleteAPIKey(ctx context.Context) error {
 	return c.do(ctx, http.MethodDelete, "/auth/api-key", nil, nil, 2, nil)
 }
 
-func (c *Client) GetClosedOnlyMode(ctx context.Context) (*BanStatus, error) {
-	var out BanStatus
-	return &out, c.do(ctx, http.MethodGet, "/auth/ban-status/closed-only", nil, nil, 2, &out)
+func (c *Client) GetClosedOnlyMode(ctx context.Context, out *BanStatus) error {
+	return c.do(ctx, http.MethodGet, "/auth/ban-status/closed-only", nil, nil, 2, out)
 }
 
-func (c *Client) GetOrder(ctx context.Context, orderID string) (*OpenOrder, error) {
-	var out OpenOrder
-	return &out, c.do(ctx, http.MethodGet, "/data/order/"+url.PathEscape(orderID), nil, nil, 2, &out)
+func (c *Client) GetOrder(ctx context.Context, out *OpenOrder) error {
+	if out == nil || out.ID == "" {
+		return errMissingIdentifier
+	}
+	return c.do(ctx, http.MethodGet, "/data/order/"+url.PathEscape(out.ID), nil, nil, 2, out)
 }
 
 func (c *Client) GetOpenOrders(ctx context.Context, params OpenOrderParams) ([]OpenOrder, error) {
@@ -316,9 +314,8 @@ func (c *Client) GetTrades(ctx context.Context, params TradeParams) ([]Trade, er
 	return out, c.do(ctx, http.MethodGet, "/data/trades", values(params), nil, 2, &out)
 }
 
-func (c *Client) PostOrder(ctx context.Context, req PostOrderRequest) (*PostOrderResponse, error) {
-	var out PostOrderResponse
-	return &out, c.do(ctx, http.MethodPost, "/order", nil, req, 2, &out)
+func (c *Client) PostOrder(ctx context.Context, req PostOrderRequest, out *PostOrderResponse) error {
+	return c.do(ctx, http.MethodPost, "/order", nil, req, 2, out)
 }
 
 func (c *Client) PostOrders(ctx context.Context, reqs []PostOrderRequest, postOnly, deferExec bool) ([]PostOrderResponse, error) {
@@ -333,24 +330,20 @@ func (c *Client) PostOrders(ctx context.Context, reqs []PostOrderRequest, postOn
 	return out, c.do(ctx, http.MethodPost, "/orders", q, reqs, 2, &out)
 }
 
-func (c *Client) CancelOrder(ctx context.Context, orderID string) (*CancelOrdersResponse, error) {
-	var out CancelOrdersResponse
-	return &out, c.do(ctx, http.MethodDelete, "/order", nil, map[string]string{"orderID": orderID}, 2, &out)
+func (c *Client) CancelOrder(ctx context.Context, orderID string, out *CancelOrdersResponse) error {
+	return c.do(ctx, http.MethodDelete, "/order", nil, map[string]string{"orderID": orderID}, 2, out)
 }
 
-func (c *Client) CancelOrders(ctx context.Context, orderIDs []string) (*CancelOrdersResponse, error) {
-	var out CancelOrdersResponse
-	return &out, c.do(ctx, http.MethodDelete, "/orders", nil, orderIDs, 2, &out)
+func (c *Client) CancelOrders(ctx context.Context, orderIDs []string, out *CancelOrdersResponse) error {
+	return c.do(ctx, http.MethodDelete, "/orders", nil, orderIDs, 2, out)
 }
 
-func (c *Client) CancelAll(ctx context.Context) (*CancelOrdersResponse, error) {
-	var out CancelOrdersResponse
-	return &out, c.do(ctx, http.MethodDelete, "/cancel-all", nil, nil, 2, &out)
+func (c *Client) CancelAll(ctx context.Context, out *CancelOrdersResponse) error {
+	return c.do(ctx, http.MethodDelete, "/cancel-all", nil, nil, 2, out)
 }
 
-func (c *Client) CancelMarketOrders(ctx context.Context, params OrderMarketCancelParams) (*CancelOrdersResponse, error) {
-	var out CancelOrdersResponse
-	return &out, c.do(ctx, http.MethodDelete, "/cancel-market-orders", nil, params, 2, &out)
+func (c *Client) CancelMarketOrders(ctx context.Context, params OrderMarketCancelParams, out *CancelOrdersResponse) error {
+	return c.do(ctx, http.MethodDelete, "/cancel-market-orders", nil, params, 2, out)
 }
 
 func (c *Client) GetNotifications(ctx context.Context) ([]Notification, error) {
@@ -362,19 +355,16 @@ func (c *Client) DropNotifications(ctx context.Context, params DropNotificationP
 	return c.do(ctx, http.MethodDelete, "/notifications", values(params), nil, 2, nil)
 }
 
-func (c *Client) GetBalanceAllowance(ctx context.Context, params BalanceAllowanceParams) (*BalanceAllowanceResponse, error) {
-	var out BalanceAllowanceResponse
-	return &out, c.do(ctx, http.MethodGet, "/balance-allowance", values(params), nil, 2, &out)
+func (c *Client) GetBalanceAllowance(ctx context.Context, params BalanceAllowanceParams, out *BalanceAllowanceResponse) error {
+	return c.do(ctx, http.MethodGet, "/balance-allowance", values(params), nil, 2, out)
 }
 
-func (c *Client) UpdateBalanceAllowance(ctx context.Context, params BalanceAllowanceParams) (*BalanceAllowanceResponse, error) {
-	var out BalanceAllowanceResponse
-	return &out, c.do(ctx, http.MethodPost, "/balance-allowance/update", nil, params, 2, &out)
+func (c *Client) UpdateBalanceAllowance(ctx context.Context, params BalanceAllowanceParams, out *BalanceAllowanceResponse) error {
+	return c.do(ctx, http.MethodPost, "/balance-allowance/update", nil, params, 2, out)
 }
 
-func (c *Client) IsOrderScoring(ctx context.Context, orderID string) (*OrderScoring, error) {
-	var out OrderScoring
-	return &out, c.do(ctx, http.MethodGet, "/order-scoring", url.Values{"order_id": []string{orderID}}, nil, 2, &out)
+func (c *Client) IsOrderScoring(ctx context.Context, orderID string, out *OrderScoring) error {
+	return c.do(ctx, http.MethodGet, "/order-scoring", url.Values{"order_id": []string{orderID}}, nil, 2, out)
 }
 
 func (c *Client) AreOrdersScoring(ctx context.Context, orderIDs []string) (map[string]bool, error) {
@@ -382,28 +372,25 @@ func (c *Client) AreOrdersScoring(ctx context.Context, orderIDs []string) (map[s
 	return out, c.do(ctx, http.MethodPost, "/orders-scoring", nil, map[string][]string{"orderIds": orderIDs}, 2, &out)
 }
 
-func (c *Client) PostHeartbeat(ctx context.Context, heartbeatID string) (*HeartbeatResponse, error) {
-	var out HeartbeatResponse
+func (c *Client) PostHeartbeat(ctx context.Context, heartbeatID string, out *HeartbeatResponse) error {
 	body := map[string]string{}
 	if heartbeatID != "" {
 		body["heartbeat_id"] = heartbeatID
 	}
-	return &out, c.do(ctx, http.MethodPost, "/v1/heartbeats", nil, body, 2, &out)
+	return c.do(ctx, http.MethodPost, "/v1/heartbeats", nil, body, 2, out)
 }
 
-func (c *Client) GetEarningsForUserForDay(ctx context.Context, date string, signatureType SignatureType, cursor string) (*Page[UserEarning], error) {
-	var out Page[UserEarning]
+func (c *Client) GetEarningsForUserForDay(ctx context.Context, date string, signatureType SignatureType, cursor string, out *Page[UserEarning]) error {
 	q := url.Values{"date": []string{date}, "signature_type": []string{strconv.Itoa(int(signatureType))}}
 	if cursor != "" {
 		q.Set("next_cursor", cursor)
 	}
-	return &out, c.do(ctx, http.MethodGet, "/rewards/user", q, nil, 2, &out)
+	return c.do(ctx, http.MethodGet, "/rewards/user", q, nil, 2, out)
 }
 
-func (c *Client) GetTotalEarningsForUserForDay(ctx context.Context, date string, signatureType SignatureType) (*UserEarning, error) {
-	var out UserEarning
+func (c *Client) GetTotalEarningsForUserForDay(ctx context.Context, date string, signatureType SignatureType, out *UserEarning) error {
 	q := url.Values{"date": []string{date}, "signature_type": []string{strconv.Itoa(int(signatureType))}}
-	return &out, c.do(ctx, http.MethodGet, "/rewards/user/total", q, nil, 2, &out)
+	return c.do(ctx, http.MethodGet, "/rewards/user/total", q, nil, 2, out)
 }
 
 func (c *Client) GetRewardPercentages(ctx context.Context, signatureType SignatureType) (map[string]Float64, error) {
@@ -412,30 +399,26 @@ func (c *Client) GetRewardPercentages(ctx context.Context, signatureType Signatu
 	return out, c.do(ctx, http.MethodGet, "/rewards/user/percentages", q, nil, 2, &out)
 }
 
-func (c *Client) GetUserEarningsAndMarketsConfig(ctx context.Context, params EarningsParams, signatureType SignatureType) (*Page[UserRewardsEarning], error) {
-	var out Page[UserRewardsEarning]
+func (c *Client) GetUserEarningsAndMarketsConfig(ctx context.Context, params EarningsParams, signatureType SignatureType, out *Page[UserRewardsEarning]) error {
 	q := values(params)
 	q.Set("signature_type", strconv.Itoa(int(signatureType)))
-	return &out, c.do(ctx, http.MethodGet, "/rewards/user/markets", q, nil, 2, &out)
+	return c.do(ctx, http.MethodGet, "/rewards/user/markets", q, nil, 2, out)
 }
 
-func (c *Client) GetCurrentRewards(ctx context.Context, cursor string) (*Page[CurrentReward], error) {
-	var out Page[CurrentReward]
-	return &out, c.getPage(ctx, "/rewards/markets/current", cursor, &out)
+func (c *Client) GetCurrentRewards(ctx context.Context, cursor string, out *Page[CurrentReward]) error {
+	return c.getPage(ctx, "/rewards/markets/current", cursor, out)
 }
 
-func (c *Client) GetRewardsForMarket(ctx context.Context, conditionID, cursor string) (*Page[MarketReward], error) {
-	var out Page[MarketReward]
+func (c *Client) GetRewardsForMarket(ctx context.Context, conditionID, cursor string, out *Page[MarketReward]) error {
 	q := url.Values{}
 	if cursor != "" {
 		q.Set("next_cursor", cursor)
 	}
-	return &out, c.do(ctx, http.MethodGet, "/rewards/markets/"+url.PathEscape(conditionID), q, nil, 0, &out)
+	return c.do(ctx, http.MethodGet, "/rewards/markets/"+url.PathEscape(conditionID), q, nil, 0, out)
 }
 
-func (c *Client) CreateBuilderAPIKey(ctx context.Context) (*Credentials, error) {
-	var out Credentials
-	return &out, c.do(ctx, http.MethodPost, "/auth/builder-api-key", nil, nil, 2, &out)
+func (c *Client) CreateBuilderAPIKey(ctx context.Context, out *Credentials) error {
+	return c.do(ctx, http.MethodPost, "/auth/builder-api-key", nil, nil, 2, out)
 }
 
 func (c *Client) GetBuilderAPIKeys(ctx context.Context) ([]BuilderAPIKey, error) {
@@ -447,19 +430,16 @@ func (c *Client) RevokeBuilderAPIKey(ctx context.Context) error {
 	return c.do(ctx, http.MethodDelete, "/auth/builder-api-key", nil, nil, 2, nil)
 }
 
-func (c *Client) GetBuilderTrades(ctx context.Context, params BuilderTradeParams) (*Page[BuilderTrade], error) {
-	var out Page[BuilderTrade]
-	return &out, c.do(ctx, http.MethodGet, "/builder/trades", values(params), nil, 2, &out)
+func (c *Client) GetBuilderTrades(ctx context.Context, params BuilderTradeParams, out *Page[BuilderTrade]) error {
+	return c.do(ctx, http.MethodGet, "/builder/trades", values(params), nil, 2, out)
 }
 
-func (c *Client) GetBuilderFeeRate(ctx context.Context, builderCode string) (*BuilderFeeRate, error) {
-	var out BuilderFeeRate
-	return &out, c.do(ctx, http.MethodGet, "/fees/builder-fees/"+url.PathEscape(builderCode), nil, nil, 0, &out)
+func (c *Client) GetBuilderFeeRate(ctx context.Context, builderCode string, out *BuilderFeeRate) error {
+	return c.do(ctx, http.MethodGet, "/fees/builder-fees/"+url.PathEscape(builderCode), nil, nil, 0, out)
 }
 
-func (c *Client) CreateReadonlyAPIKey(ctx context.Context) (*ReadonlyAPIKey, error) {
-	var out ReadonlyAPIKey
-	return &out, c.do(ctx, http.MethodPost, "/auth/readonly-api-key", nil, nil, 2, &out)
+func (c *Client) CreateReadonlyAPIKey(ctx context.Context, out *ReadonlyAPIKey) error {
+	return c.do(ctx, http.MethodPost, "/auth/readonly-api-key", nil, nil, 2, out)
 }
 
 func (c *Client) GetReadonlyAPIKeys(ctx context.Context) ([]ReadonlyAPIKey, error) {
@@ -485,9 +465,8 @@ func (c *Client) CancelRFQRequest(ctx context.Context, requestID string) error {
 	return c.do(ctx, http.MethodDelete, "/rfq/request", nil, CancelRFQRequest{RequestID: requestID}, 2, nil)
 }
 
-func (c *Client) GetRFQRequests(ctx context.Context, params RFQListParams) (*Page[RfqRequest], error) {
-	var out Page[RfqRequest]
-	return &out, c.do(ctx, http.MethodGet, "/rfq/data/requests", values(params), nil, 2, &out)
+func (c *Client) GetRFQRequests(ctx context.Context, params RFQListParams, out *Page[RfqRequest]) error {
+	return c.do(ctx, http.MethodGet, "/rfq/data/requests", values(params), nil, 2, out)
 }
 
 func (c *Client) CreateRFQQuote(ctx context.Context, req CreateRFQQuoteRequest) (map[string]any, error) {
@@ -499,19 +478,16 @@ func (c *Client) CancelRFQQuote(ctx context.Context, quoteID string) error {
 	return c.do(ctx, http.MethodDelete, "/rfq/quote", nil, CancelRFQQuoteRequest{QuoteID: quoteID}, 2, nil)
 }
 
-func (c *Client) GetRFQRequesterQuotes(ctx context.Context, params RFQListParams) (*Page[RfqQuote], error) {
-	var out Page[RfqQuote]
-	return &out, c.do(ctx, http.MethodGet, "/rfq/data/requester/quotes", values(params), nil, 2, &out)
+func (c *Client) GetRFQRequesterQuotes(ctx context.Context, params RFQListParams, out *Page[RfqQuote]) error {
+	return c.do(ctx, http.MethodGet, "/rfq/data/requester/quotes", values(params), nil, 2, out)
 }
 
-func (c *Client) GetRFQQuoterQuotes(ctx context.Context, params RFQListParams) (*Page[RfqQuote], error) {
-	var out Page[RfqQuote]
-	return &out, c.do(ctx, http.MethodGet, "/rfq/data/quoter/quotes", values(params), nil, 2, &out)
+func (c *Client) GetRFQQuoterQuotes(ctx context.Context, params RFQListParams, out *Page[RfqQuote]) error {
+	return c.do(ctx, http.MethodGet, "/rfq/data/quoter/quotes", values(params), nil, 2, out)
 }
 
-func (c *Client) GetRFQBestQuote(ctx context.Context, params RFQListParams) (*RfqQuote, error) {
-	var out RfqQuote
-	return &out, c.do(ctx, http.MethodGet, "/rfq/data/best-quote", values(params), nil, 2, &out)
+func (c *Client) GetRFQBestQuote(ctx context.Context, params RFQListParams, out *RfqQuote) error {
+	return c.do(ctx, http.MethodGet, "/rfq/data/best-quote", values(params), nil, 2, out)
 }
 
 func (c *Client) AcceptRFQRequest(ctx context.Context, requestID string) error {

@@ -16,98 +16,102 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-// BuildSplitPositionTx builds the destination and calldata for splitPosition.
-func (c *Client) BuildSplitPositionTx(req SplitPositionRequest) (*CTFTransaction, error) {
+// BuildSplitPositionTx writes the destination and calldata for splitPosition into out.
+func (c *Client) BuildSplitPositionTx(req SplitPositionRequest, out *CTFTransaction) error {
 	data, err := ctfABI.Pack("splitPosition", req.CollateralToken, req.ParentCollectionID, req.ConditionID, req.Partition, req.Amount)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: pack splitPosition: %w", err)
+		return fmt.Errorf("ctf: pack splitPosition: %w", err)
 	}
 	to, err := c.contractAddress(func(cc ContractConfig) common.Address { return cc.ConditionalTokens })
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &CTFTransaction{To: to, Data: data}, nil
+	*out = CTFTransaction{To: to, Data: data}
+	return nil
 }
 
-// BuildMergePositionsTx builds the destination and calldata for mergePositions.
-func (c *Client) BuildMergePositionsTx(req MergePositionsRequest) (*CTFTransaction, error) {
+// BuildMergePositionsTx writes the destination and calldata for mergePositions into out.
+func (c *Client) BuildMergePositionsTx(req MergePositionsRequest, out *CTFTransaction) error {
 	data, err := ctfABI.Pack("mergePositions", req.CollateralToken, req.ParentCollectionID, req.ConditionID, req.Partition, req.Amount)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: pack mergePositions: %w", err)
+		return fmt.Errorf("ctf: pack mergePositions: %w", err)
 	}
 	to, err := c.contractAddress(func(cc ContractConfig) common.Address { return cc.ConditionalTokens })
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &CTFTransaction{To: to, Data: data}, nil
+	*out = CTFTransaction{To: to, Data: data}
+	return nil
 }
 
-// BuildRedeemPositionsTx builds the destination and calldata for redeemPositions.
-func (c *Client) BuildRedeemPositionsTx(req RedeemPositionsRequest) (*CTFTransaction, error) {
+// BuildRedeemPositionsTx writes the destination and calldata for redeemPositions into out.
+func (c *Client) BuildRedeemPositionsTx(req RedeemPositionsRequest, out *CTFTransaction) error {
 	data, err := ctfABI.Pack("redeemPositions", req.CollateralToken, req.ParentCollectionID, req.ConditionID, req.IndexSets)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: pack redeemPositions: %w", err)
+		return fmt.Errorf("ctf: pack redeemPositions: %w", err)
 	}
 	to, err := c.contractAddress(func(cc ContractConfig) common.Address { return cc.ConditionalTokens })
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &CTFTransaction{To: to, Data: data}, nil
+	*out = CTFTransaction{To: to, Data: data}
+	return nil
 }
 
-// BuildRedeemNegRiskTx builds the destination and calldata for neg-risk adapter redemption.
-func (c *Client) BuildRedeemNegRiskTx(req RedeemNegRiskRequest) (*CTFTransaction, error) {
+// BuildRedeemNegRiskTx writes the destination and calldata for neg-risk adapter redemption into out.
+func (c *Client) BuildRedeemNegRiskTx(req RedeemNegRiskRequest, out *CTFTransaction) error {
 	data, err := negRiskABI.Pack("redeemPositions", req.ConditionID, req.Amounts)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: pack neg-risk redeemPositions: %w", err)
+		return fmt.Errorf("ctf: pack neg-risk redeemPositions: %w", err)
 	}
 	to, err := c.contractAddress(func(cc ContractConfig) common.Address { return cc.NegRiskAdapter })
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &CTFTransaction{To: to, Data: data}, nil
+	*out = CTFTransaction{To: to, Data: data}
+	return nil
 }
 
-// SplitPosition submits a splitPosition transaction and waits for its receipt.
-func (c *Client) SplitPosition(ctx context.Context, req SplitPositionRequest) (*TxReceipt, error) {
-	tx, err := c.BuildSplitPositionTx(req)
-	if err != nil {
-		return nil, err
+// SplitPosition submits a splitPosition transaction and writes its receipt into out.
+func (c *Client) SplitPosition(ctx context.Context, req SplitPositionRequest, out *TxReceipt) error {
+	var tx CTFTransaction
+	if err := c.BuildSplitPositionTx(req, &tx); err != nil {
+		return err
 	}
-	return c.sendCTFTxAndWait(ctx, tx)
+	return c.sendCTFTxAndWait(ctx, &tx, out)
 }
 
-// MergePositions submits a mergePositions transaction and waits for its receipt.
-func (c *Client) MergePositions(ctx context.Context, req MergePositionsRequest) (*TxReceipt, error) {
-	tx, err := c.BuildMergePositionsTx(req)
-	if err != nil {
-		return nil, err
+// MergePositions submits a mergePositions transaction and writes its receipt into out.
+func (c *Client) MergePositions(ctx context.Context, req MergePositionsRequest, out *TxReceipt) error {
+	var tx CTFTransaction
+	if err := c.BuildMergePositionsTx(req, &tx); err != nil {
+		return err
 	}
-	return c.sendCTFTxAndWait(ctx, tx)
+	return c.sendCTFTxAndWait(ctx, &tx, out)
 }
 
-// RedeemPositions submits a redeemPositions transaction and waits for its receipt.
-func (c *Client) RedeemPositions(ctx context.Context, req RedeemPositionsRequest) (*TxReceipt, error) {
-	tx, err := c.BuildRedeemPositionsTx(req)
-	if err != nil {
-		return nil, err
+// RedeemPositions submits a redeemPositions transaction and writes its receipt into out.
+func (c *Client) RedeemPositions(ctx context.Context, req RedeemPositionsRequest, out *TxReceipt) error {
+	var tx CTFTransaction
+	if err := c.BuildRedeemPositionsTx(req, &tx); err != nil {
+		return err
 	}
-	return c.sendCTFTxAndWait(ctx, tx)
+	return c.sendCTFTxAndWait(ctx, &tx, out)
 }
 
-// RedeemNegRisk submits a neg-risk adapter redemption transaction and waits for its receipt.
-func (c *Client) RedeemNegRisk(ctx context.Context, req RedeemNegRiskRequest) (*TxReceipt, error) {
-	tx, err := c.BuildRedeemNegRiskTx(req)
-	if err != nil {
-		return nil, err
+// RedeemNegRisk submits a neg-risk adapter redemption transaction and writes its receipt into out.
+func (c *Client) RedeemNegRisk(ctx context.Context, req RedeemNegRiskRequest, out *TxReceipt) error {
+	var tx CTFTransaction
+	if err := c.BuildRedeemNegRiskTx(req, &tx); err != nil {
+		return err
 	}
-	return c.sendCTFTxAndWait(ctx, tx)
+	return c.sendCTFTxAndWait(ctx, &tx, out)
 }
 
 // SubmitCTFRelayerTransaction submits built CTF calldata through the configured relayer.
-func (c *Client) SubmitCTFRelayerTransaction(ctx context.Context, tx *CTFTransaction, req RelayerCTFRequest) (*relayer.SubmitTransactionResponse, error) {
+func (c *Client) SubmitCTFRelayerTransaction(ctx context.Context, tx *CTFTransaction, req RelayerCTFRequest, out *relayer.SubmitTransactionResponse) error {
 	if tx == nil {
-		return nil, errors.New("polymarket: nil CTF transaction")
+		return errors.New("polymarket: nil CTF transaction")
 	}
 	return c.SubmitRelayerTransaction(ctx, relayer.SubmitTransactionRequest{
 		From:            req.From,
@@ -120,7 +124,7 @@ func (c *Client) SubmitCTFRelayerTransaction(ctx context.Context, tx *CTFTransac
 		Type:            req.Type,
 		Metadata:        req.Metadata,
 		Value:           req.Value,
-	})
+	}, out)
 }
 
 // ConditionID computes the CTF condition ID for oracle, question ID, and slot count.
@@ -168,16 +172,16 @@ func (c *Client) contractAddress(field func(ContractConfig) common.Address) (com
 	return field(config), nil
 }
 
-func (c *Client) sendCTFTxAndWait(ctx context.Context, txRequest *CTFTransaction) (*TxReceipt, error) {
+func (c *Client) sendCTFTxAndWait(ctx context.Context, txRequest *CTFTransaction, out *TxReceipt) error {
 	if c.auth.Signer == nil {
-		return nil, errors.New("ctf: signer is required")
+		return errors.New("ctf: signer is required")
 	}
 	if c.rpcURL == "" {
-		return nil, errors.New("ctf: rpc url is required")
+		return errors.New("ctf: rpc url is required")
 	}
 	ec, err := ethclient.DialContext(ctx, c.rpcURL)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: dial rpc: %w", err)
+		return fmt.Errorf("ctf: dial rpc: %w", err)
 	}
 	defer ec.Close()
 
@@ -185,23 +189,23 @@ func (c *Client) sendCTFTxAndWait(ctx context.Context, txRequest *CTFTransaction
 	from := crypto.PubkeyToAddress(key.PublicKey)
 	nonce, err := ec.PendingNonceAt(ctx, from)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: get nonce: %w", err)
+		return fmt.Errorf("ctf: get nonce: %w", err)
 	}
 
 	chainID := big.NewInt(c.auth.ChainID)
 	gasTipCap, err := ec.SuggestGasTipCap(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: suggest gas tip cap: %w", err)
+		return fmt.Errorf("ctf: suggest gas tip cap: %w", err)
 	}
 	head, err := ec.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: get latest header: %w", err)
+		return fmt.Errorf("ctf: get latest header: %w", err)
 	}
 	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(head.BaseFee, big.NewInt(2)))
 	msg := ethereum.CallMsg{From: from, To: &txRequest.To, Data: txRequest.Data, GasFeeCap: gasFeeCap, GasTipCap: gasTipCap}
 	gasLimit, err := ec.EstimateGas(ctx, msg)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: estimate gas: %w", err)
+		return fmt.Errorf("ctf: estimate gas: %w", err)
 	}
 	tx := types.NewTx(&types.DynamicFeeTx{
 		ChainID:   chainID,
@@ -215,19 +219,20 @@ func (c *Client) sendCTFTxAndWait(ctx context.Context, txRequest *CTFTransaction
 	})
 	signed, err := types.SignTx(tx, types.LatestSignerForChainID(chainID), key)
 	if err != nil {
-		return nil, fmt.Errorf("ctf: sign tx: %w", err)
+		return fmt.Errorf("ctf: sign tx: %w", err)
 	}
 	if err := ec.SendTransaction(ctx, signed); err != nil {
-		return nil, fmt.Errorf("ctf: send tx: %w", err)
+		return fmt.Errorf("ctf: send tx: %w", err)
 	}
 	receipt, err := waitForReceipt(ctx, ec, signed.Hash())
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if receipt.Status == types.ReceiptStatusFailed {
-		return nil, fmt.Errorf("ctf: transaction %s reverted", signed.Hash().Hex())
+		return fmt.Errorf("ctf: transaction %s reverted", signed.Hash().Hex())
 	}
-	return &TxReceipt{Hash: receipt.TxHash, BlockNumber: receipt.BlockNumber.Uint64()}, nil
+	*out = TxReceipt{Hash: receipt.TxHash, BlockNumber: receipt.BlockNumber.Uint64()}
+	return nil
 }
 
 func waitForReceipt(ctx context.Context, ec *ethclient.Client, txHash common.Hash) (*types.Receipt, error) {

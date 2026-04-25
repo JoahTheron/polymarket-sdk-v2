@@ -35,11 +35,16 @@
 //
 // # Market Data (No Auth Required)
 //
-//	client.GetClobMarketInfo(ctx, "0xabc123")
-//	client.GetOrderBook(ctx, "token-id")
-//	client.GetMidpoint(ctx, "token-id")
-//	client.GetPrice(ctx, "token-id", clob.SideBuy)
-//	client.GetTickSize(ctx, "token-id")
+//	market := clob.ClobMarketInfo{ConditionID: "0xabc123"}
+//	client.GetClobMarketInfo(ctx, &market)
+//	book := clob.OrderBookSummary{AssetID: "token-id"}
+//	client.GetOrderBook(ctx, &book)
+//	var mid clob.MidpointResponse
+//	client.GetMidpoint(ctx, "token-id", &mid)
+//	var price clob.PriceResponse
+//	client.GetPrice(ctx, "token-id", clob.Buy, &price)
+//	var tick clob.TickSizeResponse
+//	client.GetTickSize(ctx, "token-id", &tick)
 //
 // # Orders & Trading (AuthL2 Required)
 //

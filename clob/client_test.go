@@ -25,8 +25,8 @@ func TestGetClobMarketInfoUsesV2EndpointAndFlexibleFields(t *testing.T) {
 	defer srv.Close()
 
 	client := NewClient(srv.URL)
-	got, err := client.GetClobMarketInfo(context.Background(), "0xabc")
-	if err != nil {
+	got := ClobMarketInfo{ConditionID: "0xabc"}
+	if err := client.GetClobMarketInfo(context.Background(), &got); err != nil {
 		t.Fatal(err)
 	}
 	if got.ConditionID != "0xabc" || !got.NegRisk || !got.RFQEnabled {
@@ -61,8 +61,8 @@ func TestCLOBAdditionalMarketDataEndpoints(t *testing.T) {
 	defer srv.Close()
 
 	client := NewClient(srv.URL)
-	history, err := client.GetBatchPricesHistory(context.Background(), BatchPriceHistoryParams{Markets: []string{"token-1"}})
-	if err != nil {
+	var history BatchPriceHistoryResponse
+	if err := client.GetBatchPricesHistory(context.Background(), BatchPriceHistoryParams{Markets: []string{"token-1"}}, &history); err != nil {
 		t.Fatal(err)
 	}
 	if len(history.History["token-1"]) != 1 || float64(history.History["token-1"][0].P) != 0.42 {
@@ -75,10 +75,12 @@ func TestCLOBAdditionalMarketDataEndpoints(t *testing.T) {
 	if len(rebates) != 1 || float64(rebates[0].RebatedFeesUSDC) != 0.237519 {
 		t.Fatalf("unexpected rebates: %+v", rebates)
 	}
-	if fee, err := client.GetFeeRateByTokenID(context.Background(), "token-1"); err != nil || int(fee.BaseFee) != 30 {
+	var fee FeeRateResponse
+	if err := client.GetFeeRateByTokenID(context.Background(), "token-1", &fee); err != nil || int(fee.BaseFee) != 30 {
 		t.Fatalf("fee=%+v err=%v", fee, err)
 	}
-	if tick, err := client.GetTickSizeByTokenID(context.Background(), "token-1"); err != nil || tick.MinimumTickSize != TickSizeHundredth {
+	var tick TickSizeResponse
+	if err := client.GetTickSizeByTokenID(context.Background(), "token-1", &tick); err != nil || tick.MinimumTickSize != TickSizeHundredth {
 		t.Fatalf("tick=%+v err=%v", tick, err)
 	}
 }

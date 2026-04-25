@@ -48,10 +48,9 @@ func New(config Config) *Client {
 // Host returns the configured Data API host.
 func (c *Client) Host() string { return c.host }
 
-// GetHealth returns the Data API health response.
-func (c *Client) GetHealth(ctx context.Context) (*Health, error) {
-	var out Health
-	return &out, c.http.GetJSON(ctx, "/", nil, polyhttp.AuthNone, &out)
+// GetHealth writes the Data API health response into out.
+func (c *Client) GetHealth(ctx context.Context, out *Health) error {
+	return c.http.GetJSON(ctx, "/", nil, polyhttp.AuthNone, out)
 }
 
 // GetPositions returns current positions for a user.
@@ -98,10 +97,9 @@ func (c *Client) GetHolders(ctx context.Context, params HoldersParams) ([]Holder
 	return out, c.http.GetJSON(ctx, "/holders", params.values(), polyhttp.AuthNone, &out)
 }
 
-// GetTraded returns the total markets a user has traded.
-func (c *Client) GetTraded(ctx context.Context, user string) (*Traded, error) {
-	var out Traded
-	return &out, c.http.GetJSON(ctx, "/traded", url.Values{"user": []string{user}}, polyhttp.AuthNone, &out)
+// GetTraded writes the total markets a user has traded into out.
+func (c *Client) GetTraded(ctx context.Context, user string, out *Traded) error {
+	return c.http.GetJSON(ctx, "/traded", url.Values{"user": []string{user}}, polyhttp.AuthNone, out)
 }
 
 // GetOpenInterest returns open interest for markets.

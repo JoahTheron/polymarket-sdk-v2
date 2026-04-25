@@ -41,8 +41,8 @@ func TestRelayerDocumentedEndpoints(t *testing.T) {
 	defer srv.Close()
 
 	client := New(Config{Host: srv.URL})
-	tx, err := client.GetTransaction(context.Background(), "tx-1")
-	if err != nil {
+	tx := Transaction{TransactionID: "tx-1"}
+	if err := client.GetTransaction(context.Background(), &tx); err != nil {
 		t.Fatal(err)
 	}
 	if tx.TransactionID != "tx-1" || tx.Data != "0x01" || tx.Type != "SAFE" {
@@ -51,13 +51,16 @@ func TestRelayerDocumentedEndpoints(t *testing.T) {
 	if _, err := client.GetRecentTransactions(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.GetNonce(context.Background(), "0xabc", NonceTypeSafe); err != nil {
+	nonce := NonceResponse{Address: "0xabc"}
+	if err := client.GetNonce(context.Background(), &nonce, NonceTypeSafe); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.GetRelayPayload(context.Background(), "0xabc", NonceTypeProxy); err != nil {
+	payload := NonceResponse{Address: "0xabc"}
+	if err := client.GetRelayPayload(context.Background(), &payload, NonceTypeProxy); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.IsSafeDeployed(context.Background(), "0xsafe"); err != nil {
+	deployed := SafeDeployedResponse{Address: "0xsafe"}
+	if err := client.IsSafeDeployed(context.Background(), &deployed); err != nil {
 		t.Fatal(err)
 	}
 	keys, err := client.GetAPIKeys(context.Background())

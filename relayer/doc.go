@@ -20,10 +20,12 @@
 //	})
 //
 //	// Submit a signed transaction
-//	resp, err := client.SubmitTransaction(ctx, relayer.SubmitTransactionRequest{...})
+//	var resp relayer.SubmitTransactionResponse
+//	err := client.SubmitTransaction(ctx, relayer.SubmitTransactionRequest{...}, &resp)
 //
 //	// Check transaction status
-//	tx, err := client.GetTransaction(ctx, "tx-id")
+//	tx := relayer.Transaction{TransactionID: "tx-id"}
+//	err = client.GetTransaction(ctx, &tx)
 //
 //	// Get recent transactions
 //	txs, err := client.GetRecentTransactions(ctx)

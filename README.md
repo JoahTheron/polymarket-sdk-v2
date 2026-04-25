@@ -41,8 +41,8 @@ func main() {
     client := clob.NewClient("") // defaults to CLOB v2 host
 
     // Fetch market data
-    marketInfo, err := client.GetClobMarketInfo(context.Background(), "0xabc123")
-    if err != nil {
+    marketInfo := clob.ClobMarketInfo{ConditionID: "0xabc123"}
+    if err := client.GetClobMarketInfo(context.Background(), &marketInfo); err != nil {
         panic(err)
     }
     fmt.Printf("Market: %s (negRisk=%v)\n", marketInfo.ConditionID, marketInfo.NegRisk)

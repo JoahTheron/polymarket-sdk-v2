@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -15,6 +16,8 @@ import (
 	"github.com/bububa/polymarket-client/internal/polyauth"
 	"github.com/bububa/polymarket-client/internal/polyhttp"
 )
+
+var errMissingIdentifier = errors.New("polymarket: missing identifier on output value")
 
 // DefaultHost is the production Polymarket Relayer API host.
 const DefaultHost = "https://relayer-v2.polymarket.com"
@@ -65,35 +68,34 @@ func New(config Config) *Client {
 // Host returns the configured Relayer API host.
 func (c *Client) Host() string { return c.host }
 
-// SubmitTransaction submits a signed transaction to the relayer.
-func (c *Client) SubmitTransaction(ctx context.Context, req SubmitTransactionRequest) (*SubmitTransactionResponse, error) {
-	var out SubmitTransactionResponse
-	return &out, c.do(ctx, http.MethodPost, "/submit", nil, req, &out)
+// SubmitTransaction submits a signed transaction to the relayer and writes the response into out.
+func (c *Client) SubmitTransaction(ctx context.Context, req SubmitTransactionRequest, out *SubmitTransactionResponse) error {
+	return c.do(ctx, http.MethodPost, "/submit", nil, req, out)
 }
 
-// GetTransaction returns a relayer transaction by ID.
-func (c *Client) GetTransaction(ctx context.Context, transactionID string) (*Transaction, error) {
+// GetTransaction writes a relayer transaction by out.TransactionID into out.
+func (c *Client) GetTransaction(ctx context.Context, out *Transaction) error {
+	if out == nil || out.TransactionID == "" {
+		return errMissingIdentifier
+	}
 	var raw json.RawMessage
-	q := url.Values{"id": []string{transactionID}}
+	q := url.Values{"id": []string{out.TransactionID}}
 	if err := c.do(ctx, http.MethodGet, "/transaction", q, nil, &raw); err != nil {
-		return nil, err
+		return err
 	}
 	payload := bytes.TrimSpace(raw)
 	if bytes.HasPrefix(payload, []byte("[")) {
 		var rows []Transaction
 		if err := json.Unmarshal(payload, &rows); err != nil {
-			return nil, err
+			return err
 		}
 		if len(rows) == 0 {
-			return nil, fmt.Errorf("relayer: transaction %q not found", transactionID)
+			return fmt.Errorf("relayer: transaction %q not found", out.TransactionID)
 		}
-		return &rows[0], nil
+		*out = rows[0]
+		return nil
 	}
-	var out Transaction
-	if err := json.Unmarshal(payload, &out); err != nil {
-		return nil, err
-	}
-	return &out, nil
+	return json.Unmarshal(payload, out)
 }
 
 // GetRecentTransactions returns recent transactions owned by the authenticated address.
@@ -102,40 +104,46 @@ func (c *Client) GetRecentTransactions(ctx context.Context, _ ...string) ([]Tran
 	return out, c.do(ctx, http.MethodGet, "/transactions", nil, nil, &out)
 }
 
-// GetNonce returns the current relayer nonce for a user.
-func (c *Client) GetNonce(ctx context.Context, address string, nonceType ...NonceType) (*NonceResponse, error) {
-	var out NonceResponse
-	q := url.Values{"address": []string{address}}
+// GetNonce writes the current relayer nonce for out.Address into out.
+func (c *Client) GetNonce(ctx context.Context, out *NonceResponse, nonceType ...NonceType) error {
+	if out == nil || out.Address == "" {
+		return errMissingIdentifier
+	}
+	q := url.Values{"address": []string{out.Address}}
 	if len(nonceType) > 0 && nonceType[0] != "" {
 		q.Set("type", string(nonceType[0]))
 	}
-	return &out, c.do(ctx, http.MethodGet, "/nonce", q, nil, &out)
+	return c.do(ctx, http.MethodGet, "/nonce", q, nil, out)
 }
 
-// GetRelayPayload returns the relayer address and nonce for a user.
-func (c *Client) GetRelayPayload(ctx context.Context, address string, nonceType NonceType) (*NonceResponse, error) {
-	var out NonceResponse
-	q := url.Values{"address": []string{address}}
+// GetRelayPayload writes the relayer address and nonce for out.Address into out.
+func (c *Client) GetRelayPayload(ctx context.Context, out *NonceResponse, nonceType NonceType) error {
+	if out == nil || out.Address == "" {
+		return errMissingIdentifier
+	}
+	q := url.Values{"address": []string{out.Address}}
 	if nonceType != "" {
 		q.Set("type", string(nonceType))
 	}
-	return &out, c.do(ctx, http.MethodGet, "/relay-payload", q, nil, &out)
+	return c.do(ctx, http.MethodGet, "/relay-payload", q, nil, out)
 }
 
-// GetRelayerNonce returns the relayer address and nonce for a user.
-func (c *Client) GetRelayerNonce(ctx context.Context, address string, nonceType ...NonceType) (*NonceResponse, error) {
+// GetRelayerNonce writes the relayer address and nonce for out.Address into out.
+func (c *Client) GetRelayerNonce(ctx context.Context, out *NonceResponse, nonceType ...NonceType) error {
 	var typ NonceType
 	if len(nonceType) > 0 {
 		typ = nonceType[0]
 	}
-	return c.GetRelayPayload(ctx, address, typ)
+	return c.GetRelayPayload(ctx, out, typ)
 }
 
-// IsSafeDeployed reports whether a Safe wallet is deployed.
-func (c *Client) IsSafeDeployed(ctx context.Context, address string) (*SafeDeployedResponse, error) {
-	var out SafeDeployedResponse
-	q := url.Values{"address": []string{address}}
-	return &out, c.do(ctx, http.MethodGet, "/deployed", q, nil, &out)
+// IsSafeDeployed writes whether out.Address is deployed into out.
+func (c *Client) IsSafeDeployed(ctx context.Context, out *SafeDeployedResponse) error {
+	if out == nil || out.Address == "" {
+		return errMissingIdentifier
+	}
+	q := url.Values{"address": []string{out.Address}}
+	return c.do(ctx, http.MethodGet, "/deployed", q, nil, out)
 }
 
 // GetAPIKeys returns all relayer API keys available to the authenticated caller.

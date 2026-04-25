@@ -15,11 +15,12 @@ relayerClient := relayer.New(relayer.Config{
 })
 
 // Submit a transaction
-resp, err := relayerClient.SubmitTransaction(ctx, relayer.SubmitTransactionRequest{
+var resp relayer.SubmitTransactionResponse
+err := relayerClient.SubmitTransaction(ctx, relayer.SubmitTransactionRequest{
     Type:     "order",
     Payload:  signedPayload,
     Signature: sig,
-})
+}, &resp)
 ```
 
 ## Through CLOB Client
@@ -32,18 +33,21 @@ clobClient := clob.NewClient("",
 )
 
 // This internally calls relayerClient.SubmitTransaction
-resp, err := clobClient.SubmitRelayerTransaction(ctx, req)
+var resp relayer.SubmitTransactionResponse
+err := clobClient.SubmitRelayerTransaction(ctx, req, &resp)
 ```
 
 ## Querying Transactions
 
 ```go
 // By ID
-tx, err := relayerClient.GetTransaction(ctx, "tx-id")
+tx := relayer.Transaction{TransactionID: "tx-id"}
+err := relayerClient.GetTransaction(ctx, &tx)
 
 // Recent transactions (requires auth)
 txs, err := relayerClient.GetRecentTransactions(ctx)
 
 // Check Safe wallet deployment
-deployed, err := relayerClient.IsSafeDeployed(ctx, "0x...")
+deployed := relayer.SafeDeployedResponse{Address: "0x..."}
+err = relayerClient.IsSafeDeployed(ctx, &deployed)
 ```
