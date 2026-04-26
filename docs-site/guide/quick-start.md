@@ -57,6 +57,14 @@ import "github.com/bububa/polymarket-client/gamma"
 gammaClient := gamma.New(gamma.Config{})
 var results gamma.SearchResults
 err := gammaClient.Search(ctx, "election 2024", &results)
+
+// Get a specific market by ID (pre-allocation)
+market := gamma.Market{ID: "123"}
+err = gammaClient.GetMarket(ctx, &market)
+
+// Or by slug (leave ID empty)
+market = gamma.Market{Slug: "election-2024"}
+err = gammaClient.GetMarket(ctx, &market)
 ```
 
 ## 4. Place an Order (Auth Required)

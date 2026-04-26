@@ -9,7 +9,7 @@ export default defineConfig({
     logo: '/logo.svg',
     nav: [
       { text: 'Guide', link: '/guide/what-is' },
-      { text: 'API Reference', link: '/api/clob' },
+      { text: 'API Reference', link: '/api/' },
       { text: 'GitHub', link: 'https://github.com/bububa/polymarket-client' },
     ],
     sidebar: [
