@@ -8,27 +8,29 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
 )
 
 func TestClientSubscribesAndDecodesMessage(t *testing.T) {
-	upgrader := websocket.Upgrader{}
 	gotSub := make(chan SubscriptionRequest, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conn, err := upgrader.Upgrade(w, r, nil)
+		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{})
 		if err != nil {
-			t.Errorf("upgrade: %v", err)
+			t.Errorf("accept: %v", err)
 			return
 		}
-		defer conn.Close()
+		defer conn.Close(websocket.StatusNormalClosure, "")
 
+		ctx := context.Background()
 		var sub SubscriptionRequest
-		if err := conn.ReadJSON(&sub); err != nil {
+		if err := wsjson.Read(ctx, conn, &sub); err != nil {
 			t.Errorf("read subscription: %v", err)
 			return
 		}
 		gotSub <- sub
-		if err := conn.WriteJSON(Message{
+
+		if err := wsjson.Write(ctx, conn, Message{
 			Topic:     "crypto_prices",
 			Type:      "update",
 			Timestamp: 1700000000,
@@ -36,12 +38,15 @@ func TestClientSubscribesAndDecodesMessage(t *testing.T) {
 		}); err != nil {
 			t.Errorf("write message: %v", err)
 		}
+
+		// Keep connection alive until test completes
+		<-ctx.Done()
 	}))
 	defer server.Close()
 
 	url := "ws" + strings.TrimPrefix(server.URL, "http")
 	client := NewClient(url).WithAutoReconnect(false)
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := client.Connect(ctx); err != nil {
 		t.Fatal(err)

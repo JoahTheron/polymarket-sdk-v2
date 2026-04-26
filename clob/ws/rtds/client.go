@@ -9,40 +9,31 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
+	"github.com/coder/websocket"
+	"github.com/coder/websocket/wsjson"
+	"go.uber.org/atomic"
 )
 
 const (
 	// DefaultHost is the production Polymarket RTDS WebSocket URL.
 	DefaultHost = "wss://rtds.polymarket.com"
-
-	defaultHeartbeatInterval = 50 * time.Second
-	defaultHeartbeatTimeout  = 15 * time.Second
 )
 
 // Client is a reconnecting WebSocket client for Polymarket RTDS topics.
 type Client struct {
-	url string
+	url      string
+	dialOpts *websocket.DialOptions
 
-	dialer *websocket.Dialer
-	header http.Header
-	creds  *Credentials
-
-	mu      sync.Mutex
-	writeMu sync.Mutex
-	conn    *websocket.Conn
-	closed  bool
-
+	creds  *atomic.Pointer[Credentials]
+	conn   *atomic.Pointer[websocket.Conn]
+	closed *atomic.Bool
 	ctx    context.Context
 	cancel context.CancelFunc
+	msgs   chan *Message
+	errs   chan error
 
-	msgs chan *Message
-	errs chan error
-
-	autoReconnect     bool
-	reconnecting      bool
-	heartbeatInterval time.Duration
-	heartbeatTimeout  time.Duration
+	autoReconnect bool
+	reconnecting  *atomic.Bool
 
 	subsMu sync.RWMutex
 	subs   []Subscription
@@ -52,8 +43,6 @@ type Client struct {
 type Config struct {
 	// URL is the RTDS WebSocket URL.
 	URL string
-	// Dialer is used to open WebSocket connections.
-	Dialer *websocket.Dialer
 	// Header is sent during the WebSocket handshake.
 	Header http.Header
 	// Credentials are used when subscribing to authenticated topics.
@@ -66,24 +55,26 @@ func New(config Config) *Client {
 	if url == "" {
 		url = DefaultHost
 	}
-	dialer := config.Dialer
-	if dialer == nil {
-		dialer = websocket.DefaultDialer
-	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Client{
-		url:               url,
-		dialer:            dialer,
-		header:            cloneHeader(config.Header),
-		creds:             config.Credentials,
-		ctx:               ctx,
-		cancel:            cancel,
-		msgs:              make(chan *Message, 1024),
-		errs:              make(chan error, 64),
-		autoReconnect:     true,
-		heartbeatInterval: defaultHeartbeatInterval,
-		heartbeatTimeout:  defaultHeartbeatTimeout,
+	clt := &Client{
+		url:           url,
+		creds:         atomic.NewPointer[Credentials](config.Credentials),
+		ctx:           ctx,
+		cancel:        cancel,
+		msgs:          make(chan *Message, 1024),
+		errs:          make(chan error, 64),
+		autoReconnect: true,
+
+		conn:         atomic.NewPointer[websocket.Conn](nil),
+		reconnecting: atomic.NewBool(false),
+		closed:       atomic.NewBool(false),
 	}
+	if len(config.Header) > 0 {
+		clt.dialOpts = &websocket.DialOptions{
+			HTTPHeader: config.Header.Clone(),
+		}
+	}
+	return clt
 }
 
 // NewClient creates an RTDS client for url.
@@ -93,66 +84,55 @@ func NewClient(url string) *Client {
 
 // WithCredentials sets credentials for authenticated topic subscriptions.
 func (c *Client) WithCredentials(creds *Credentials) *Client {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.creds = creds
+	c.creds.Store(creds)
 	return c
 }
 
 // WithAutoReconnect enables or disables automatic reconnect after read failures.
 func (c *Client) WithAutoReconnect(enabled bool) *Client {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 	c.autoReconnect = enabled
 	return c
 }
 
-// Connect opens the RTDS WebSocket and starts read and heartbeat loops.
+// Connect opens the RTDS WebSocket and starts read loop.
 func (c *Client) Connect(ctx context.Context) error {
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
+	return c.connect(ctx)
+}
+
+func (c *Client) connect(ctx context.Context) error {
+	if c.closed.Load() {
 		return errors.New("polymarket: RTDS client is closed")
 	}
-	url := c.url
-	dialer := c.dialer
-	header := cloneHeader(c.header)
-	c.mu.Unlock()
 
-	conn, _, err := dialer.DialContext(ctx, url, header)
+	conn, _, err := websocket.Dial(ctx, c.url, c.dialOpts)
 	if err != nil {
 		return fmt.Errorf("polymarket: RTDS dial: %w", err)
 	}
 
-	c.mu.Lock()
-	if c.conn != nil {
-		_ = c.conn.Close()
+	if oldConn := c.conn.Swap(conn); oldConn != nil {
+		_ = oldConn.CloseNow()
 	}
-	c.conn = conn
-	c.mu.Unlock()
 
-	go c.readLoop(conn)
-	go c.heartbeatLoop(conn)
+	go c.readLoop(ctx, conn)
 	c.replaySubscriptions(ctx)
 	return nil
 }
 
 // Close closes the active RTDS connection and stops background loops.
 func (c *Client) Close() error {
-	c.mu.Lock()
-	if c.closed {
-		c.mu.Unlock()
+	if !c.closed.CompareAndSwap(false, true) {
 		return nil
 	}
-	c.closed = true
 	c.cancel()
-	conn := c.conn
-	c.conn = nil
-	c.mu.Unlock()
-	if conn != nil {
-		return conn.Close()
+	if conn := c.conn.Load(); conn != nil {
+		_ = conn.CloseNow()
 	}
 	return nil
+}
+
+// IsConnected reports whether a WebSocket connection is currently attached.
+func (c *Client) IsConnected() bool {
+	return !c.closed.Load() && c.conn.Load() != nil
 }
 
 // Messages returns decoded RTDS messages.
@@ -198,9 +178,7 @@ func (c *Client) SubscribeChainlinkPrices(ctx context.Context, symbol string) er
 // SubscribeComments subscribes to comment events.
 func (c *Client) SubscribeComments(ctx context.Context, commentType CommentType, creds *Credentials) error {
 	if creds == nil {
-		c.mu.Lock()
-		creds = c.creds
-		c.mu.Unlock()
+		creds = c.creds.Load()
 	}
 	eventType := string(commentType)
 	if eventType == "" {
@@ -221,19 +199,16 @@ func (c *Client) replaySubscriptions(ctx context.Context) {
 	}
 }
 
-func (c *Client) readLoop(conn *websocket.Conn) {
+func (c *Client) readLoop(ctx context.Context, conn *websocket.Conn) {
 	for {
-		_, data, err := conn.ReadMessage()
+		_, data, err := conn.Read(ctx)
 		if err != nil {
-			if c.ctx.Err() != nil {
+			if c.ctx.Err() != nil || websocket.CloseStatus(err) != -1 {
 				return
 			}
 			c.sendErr(fmt.Errorf("polymarket: RTDS read: %w", err))
 			c.scheduleReconnect(conn)
 			return
-		}
-		if string(data) == "PONG" {
-			continue
 		}
 		var msg Message
 		if err := json.Unmarshal(data, &msg); err != nil {
@@ -248,78 +223,42 @@ func (c *Client) readLoop(conn *websocket.Conn) {
 	}
 }
 
-func (c *Client) heartbeatLoop(conn *websocket.Conn) {
-	ticker := time.NewTicker(c.heartbeatInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-ticker.C:
-			c.writeMu.Lock()
-			_ = conn.SetWriteDeadline(time.Now().Add(c.heartbeatTimeout))
-			err := conn.WriteMessage(websocket.TextMessage, []byte("PING"))
-			_ = conn.SetWriteDeadline(time.Time{})
-			c.writeMu.Unlock()
-			if err != nil {
-				c.sendErr(fmt.Errorf("polymarket: RTDS heartbeat: %w", err))
-				c.scheduleReconnect(conn)
-				return
-			}
-		}
-	}
-}
-
 func (c *Client) sendJSON(ctx context.Context, v any) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	c.mu.Lock()
-	conn := c.conn
-	c.mu.Unlock()
+	conn := c.conn.Load()
 	if conn == nil {
 		return errors.New("polymarket: RTDS websocket is not connected")
 	}
-	done := make(chan error, 1)
-	go func() {
-		c.writeMu.Lock()
-		defer c.writeMu.Unlock()
-		done <- conn.WriteMessage(websocket.TextMessage, data)
-	}()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-done:
-		return err
-	}
+	return wsjson.Write(ctx, conn, v)
 }
 
 func (c *Client) scheduleReconnect(conn *websocket.Conn) {
-	c.mu.Lock()
-	if c.closed || !c.autoReconnect || c.reconnecting || c.conn != conn {
-		c.mu.Unlock()
+	if c.closed.Load() || !c.autoReconnect {
 		return
 	}
-	c.reconnecting = true
-	c.conn = nil
-	c.mu.Unlock()
-
+	if !c.reconnecting.CompareAndSwap(false, true) {
+		return
+	}
+	if !c.conn.CompareAndSwap(conn, nil) {
+		_ = conn.CloseNow()
+		c.reconnecting.CompareAndSwap(true, false)
+		return
+	}
 	go func() {
 		defer func() {
-			c.mu.Lock()
-			c.reconnecting = false
-			c.mu.Unlock()
+			c.reconnecting.CompareAndSwap(true, false)
 		}()
 		backoff := time.Second
 		for {
+			if c.closed.Load() {
+				return
+			}
 			select {
 			case <-c.ctx.Done():
 				return
 			case <-time.After(backoff):
 			}
 			ctx, cancel := context.WithTimeout(c.ctx, 15*time.Second)
-			err := c.Connect(ctx)
+			err := c.connect(ctx)
 			cancel()
 			if err == nil {
 				return
@@ -347,11 +286,4 @@ func (c *Client) sendErr(err error) {
 	case c.errs <- err:
 	default:
 	}
-}
-
-func cloneHeader(header http.Header) http.Header {
-	if header == nil {
-		return nil
-	}
-	return header.Clone()
 }

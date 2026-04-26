@@ -1,57 +1,130 @@
 # WebSocket Streams
 
-The WebSocket client provides real-time order book and order update streams.
+The `clob/ws` package provides a reconnecting WebSocket client for real-time order book, price, and order notification streams.
 
-## Connection
+## Quick Start
 
 ```go
 import "github.com/bububa/polymarket-client/clob/ws"
 
-// Read-only (order book only)
-wsClient, err := ws.New(ws.Config{Host: ""})
+client := ws.New()
+defer client.Close()
 
-// With authentication (order book + order notifications)
-wsClient, err := ws.New(ws.Config{
-    Signer:      polyauth.NewSigner(privateKey),
-    Credentials: &ws.Credentials{Key: "...", Secret: "...", Passphrase: "..."},
-    ChainID:     137,
-})
-defer wsClient.Close()
-```
+ctx := context.Background()
+if err := client.ConnectMarket(ctx); err != nil {
+    log.Fatal(err)
+}
 
-## Subscriptions
+// Subscribe to an order book
+if err := client.SubscribeOrderBook(ctx, []string{"asset-id"}); err != nil {
+    log.Fatal(err)
+}
 
-```go
-// Subscribe to order book snapshots for a token
-err := wsClient.SubscribeOrderBook("token-id")
-
-// Subscribe to order update notifications (requires auth)
-err = wsClient.SubscribeOrders()
-```
-
-## Reading Updates
-
-All updates arrive on `wsClient.Channel`:
-
-```go
-for update := range wsClient.Channel {
-    switch update.Type {
-    case "book":
-        // Order book snapshot
-    case "order":
-        // Order fill or status change
+// Read events
+for event := range client.Events() {
+    if book, ok := event.(*ws.BookEvent); ok {
+        fmt.Printf("bids: %d, asks: %d\n", len(book.Bids), len(book.Asks))
     }
 }
 ```
 
-## Reconnection
+## Authentication
 
-The client does **not** auto-reconnect. On `ErrConnectionLost`:
+Market-channel subscriptions (order book, prices, etc.) require no auth.  
+User-channel subscriptions (order fills, trade events) require L2 credentials:
 
 ```go
-err := wsClient.Read()
-if err == ws.ErrConnectionLost {
-    wsClient.Close()
-    // Create new client, authenticate, and re-subscribe
+client := ws.New(
+    ws.WithCredentials(&clob.Credentials{
+        Key:        "api-key",
+        Secret:     "api-secret",
+        Passphrase: "passphrase",
+    }),
+)
+client.ConnectUser(ctx)
+client.SubscribeOrders(ctx, []string{"condition-id"})
+```
+
+## Connection Lifecycle
+
+The client handles three connection scenarios automatically:
+
+```go
+client := ws.New(
+    ws.WithOnConnected(func() {
+        // Fired once — first successful connection
+        log.Println("connected")
+    }),
+    ws.WithOnReconnected(func() {
+        // Fired on each reconnect — use to log downtime or trigger alerts
+        log.Println("reconnected")
+    }),
+    ws.WithOnDisconnected(func() {
+        // Fired only when no further reconnect will happen
+        // (autoReconnect=false or client.Close() called)
+        log.Println("disconnected permanently")
+    }),
+)
+```
+
+## Auto-Reconnect
+
+By default the client reconnects with exponential backoff:
+
+| Attempt | Delay |
+|---|---|
+| 1 | 1 s |
+| 2 | 2 s |
+| 3 | 4 s |
+| 4 | 8 s |
+| n | min(2ⁿ⁻¹ s, 60 s) |
+
+After each reconnect, all subscriptions are replayed automatically.
+
+Disable auto-reconnect:
+
+```go
+client := ws.New(ws.WithAutoReconnect(false))
+```
+
+## Custom Dial Options
+
+Pass headers or subprotocols via `websocket.DialOptions`:
+
+```go
+client := ws.New(
+    ws.WithDialOptions(&websocket.DialOptions{
+        HTTPHeader: http.Header{"X-Custom": []string{"value"}},
+    }),
+)
+```
+
+## Multiple Channels
+
+The same client can connect to different channels sequentially (each `Connect*` replaces the previous connection):
+
+```go
+client.ConnectMarket(ctx)    // market events
+client.ConnectUser(ctx)       // user events  (market connection replaced)
+```
+For simultaneous market + user streams, create two clients with independent contexts.
+
+## Error Handling
+
+Asynchronous errors (read failures, reconnect errors) arrive on `client.Errors()`:
+
+```go
+for err := range client.Errors() {
+    log.Printf("ws error: %v", err)
 }
+```
+
+Subscribe to this channel in a separate goroutine so errors don't block the read loop.
+
+## Closing
+
+`Close()` is idempotent and cancels the internal context:
+
+```go
+client.Close()  // stops read loop, closes connection, no further reconnects
 ```
