@@ -1,10 +1,29 @@
-# polymarket-client
+# polymarket-sdk-v2
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/bububa/polymarket-client.svg)](https://pkg.go.dev/github.com/bububa/polymarket-client)
-[![Go Report Card](https://goreportcard.com/badge/github.com/bububa/polymarket-client)](https://goreportcard.com/report/github.com/bububa/polymarket-client)
-[![CI](https://github.com/bububa/polymarket-client/actions/workflows/go.yml/badge.svg)](https://github.com/bububa/polymarket-client/actions/workflows/go.yml)
+> Fork of [`bububa/polymarket-client`](https://github.com/bububa/polymarket-client) at v1.0.4 with a critical production-CLOB-v2 fix. Submitted upstream as a PR; this fork is the version that actually places orders against `clob.polymarket.com` today.
 
 Go SDK for [Polymarket](https://polymarket.com) — the decentralized prediction market platform on Polygon.
+
+## Why this fork exists
+
+Verified live against production CLOB v2 on 2026-04-28: every order
+submitted through upstream `bububa/polymarket-client v1.0.4` was
+rejected by the API with a generic `400 {"error":"Invalid order payload"}`.
+
+After comparing the wire body byte-for-byte against the official
+[`py-clob-client-v2`](https://github.com/Polymarket/py-clob-client-v2),
+two compounded issues with the order **salt** were isolated:
+
+| | Upstream (v1.0.4 — rejected) | This fork (accepted) |
+|---|---|---|
+| **Salt value** | full uint256 random (~78 decimal digits) | bounded to `random ∈ [0, ms_timestamp)` (≤ ~1.78e12, 13 digits) — mirrors the official Python generator |
+| **Salt JSON serialization** | `String` type → JSON **string** (e.g. `"123..."`) | `Int64` type → JSON **number** (e.g. `123...`) |
+
+Polymarket parses `salt` as a JSON Number that must fit in safe-integer range (≤ 2^53 − 1). uint256 overflows; quoted strings are rejected outright. Both fixes are required.
+
+End-to-end verification: `$1 GTC BUY → 200 OK, status:"live"`, cancel succeeds.
+
+The full fix is two commits: [`dadd379`](https://github.com/JoahTheron/polymarket-sdk-v2/commit/dadd379) (the bug fix itself) and [`0f66254`](https://github.com/JoahTheron/polymarket-sdk-v2/commit/0f66254) (module rename so polyscalper consumers see "our" SDK in their `go.mod`).
 
 ## Features
 
@@ -14,11 +33,12 @@ Go SDK for [Polymarket](https://polymarket.com) — the decentralized prediction
 - **All Polymarket APIs** — CLOB, Relayer, Data, Gamma, Bridge
 - **Zero live dependencies** — all tests use `httptest.NewServer`, run entirely offline
 - **One external dependency** — `github.com/ethereum/go-ethereum` only
+- **Production-verified order placement** — only fork where v1.0.4-era PostOrder actually succeeds against `clob.polymarket.com`
 
 ## Installation
 
 ```bash
-go get github.com/bububa/polymarket-client
+go get github.com/JoahTheron/polymarket-sdk-v2
 ```
 
 Requires **Go 1.23+** (CI uses `>=1.23.0`; `go.mod` declares 1.22).
@@ -34,7 +54,7 @@ import (
     "context"
     "fmt"
 
-    "github.com/bububa/polymarket-client/clob"
+    "github.com/JoahTheron/polymarket-sdk-v2/clob"
 )
 
 func main() {
@@ -66,8 +86,8 @@ import (
 
     "github.com/ethereum/go-ethereum/crypto"
 
-    "github.com/bububa/polymarket-client/clob"
-    "github.com/bububa/polymarket-client/internal/polyauth"
+    "github.com/JoahTheron/polymarket-sdk-v2/clob"
+    "github.com/JoahTheron/polymarket-sdk-v2/internal/polyauth"
 )
 
 func main() {
@@ -102,19 +122,19 @@ func main() {
 
 ```go
 // Data API — positions, trades, activity (no auth)
-import "github.com/bububa/polymarket-client/data"
+import "github.com/JoahTheron/polymarket-sdk-v2/data"
 
 dataClient := data.New(data.Config{})
 positions, _ := dataClient.GetPositions(ctx, data.PositionParams{User: "0x..."})
 
 // Gamma API — events, markets search, tags (no auth)
-import "github.com/bububa/polymarket-client/gamma"
+import "github.com/JoahTheron/polymarket-sdk-v2/gamma"
 
 gammaClient := gamma.New(gamma.Config{})
 markets, _ := gammaClient.GetMarkets(ctx, gamma.MarketFilterParams{/* ... */})
 
 // Relayer API — submit signed transactions (L1 auth via API key)
-import "github.com/bububa/polymarket-client/relayer"
+import "github.com/JoahTheron/polymarket-sdk-v2/relayer"
 
 relayerClient := relayer.New(relayer.Config{
     Credentials: &relayer.Credentials{
@@ -217,7 +237,7 @@ All CLOB v2 endpoints:
 ### WebSocket (`clob/ws`)
 
 ```go
-import "github.com/bububa/polymarket-client/clob/ws"
+import "github.com/JoahTheron/polymarket-sdk-v2/clob/ws"
 
 wsClient, err := ws.New(ws.Config{
     Host: "", // defaults to production
