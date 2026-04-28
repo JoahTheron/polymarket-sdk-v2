@@ -127,16 +127,16 @@ func prepareOrderForSigning(signer *polyauth.Signer, order *SignedOrder, config 
 	if order.Side != Buy && order.Side != Sell {
 		return fmt.Errorf("polymarket: invalid side %q", order.Side)
 	}
-	if order.Salt == "" {
+	if order.Salt == 0 {
 		salt := config.salt
 		if salt == nil {
-			generated, err := randomUint256()
+			generated, err := randomOrderSalt()
 			if err != nil {
 				return err
 			}
 			salt = generated
 		}
-		order.Salt = String(salt.String())
+		order.Salt = Int64(salt.Int64())
 	}
 	if order.Timestamp == "" {
 		order.Timestamp = String(strconv.FormatInt(config.now().UnixMilli(), 10))
@@ -181,7 +181,7 @@ func buildOrderTypedData(chainID int64, verifyingContract common.Address, order 
 			VerifyingContract: verifyingContract.Hex(),
 		},
 		Message: apitypes.TypedDataMessage{
-			"salt":          order.Salt.String(),
+			"salt":          strconv.FormatInt(int64(order.Salt), 10),
 			"maker":         order.Maker,
 			"signer":        order.Signer,
 			"tokenId":       order.TokenID.String(),
@@ -203,9 +203,26 @@ func orderSideValue(side Side) int {
 	return 0
 }
 
-func randomUint256() (*big.Int, error) {
-	max := new(big.Int).Lsh(big.NewInt(1), 256)
-	salt, err := rand.Int(rand.Reader, max)
+// randomOrderSalt mirrors the official py-clob-client-v2 generator:
+//
+//	int(random.random() * (time.time_ns() // 1_000_000))
+//
+// Bug discovered 2026-04-28 vs production CLOB v2: full uint256 salts
+// (256-bit random, ~78 decimal digits) are rejected with the generic
+// "Invalid order payload" error. Polymarket parses salt as a JSON
+// Number, which only safely represents integers ≤ 2^53 − 1 (~9.0e15,
+// 16 decimal digits) — anything larger overflows and is corrupted.
+//
+// We emit a salt in [0, ms_timestamp) which is always ≤ ~1.8e12
+// (13 digits) — well within Number's safe range, identical to Python.
+//
+// Function name kept as randomUint256 was renamed for honesty.
+func randomOrderSalt() (*big.Int, error) {
+	ms := big.NewInt(time.Now().UnixMilli())
+	if ms.Sign() <= 0 {
+		return big.NewInt(0), nil
+	}
+	salt, err := rand.Int(rand.Reader, ms)
 	if err != nil {
 		return nil, fmt.Errorf("polymarket: generate order salt: %w", err)
 	}

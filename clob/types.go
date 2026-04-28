@@ -379,8 +379,12 @@ type LastTradesPricesResponse struct {
 
 // SignedOrder is an EIP-712 signed order ready for submission.
 type SignedOrder struct {
-	// Salt is the order uniqueness salt.
-	Salt String `json:"salt"`
+	// Salt is the order uniqueness salt. Marshalled as a JSON number
+	// (not string) — Polymarket's CLOB v2 backend rejects salt-as-string
+	// with the generic "Invalid order payload" error. Bug discovered
+	// 2026-04-28 against production. The salt generator is bounded to
+	// the current ms timestamp (≤ ~1.78e12) so int64 safely fits.
+	Salt Int64 `json:"salt"`
 	// Maker is the order creator address.
 	Maker string `json:"maker"`
 	// Signer is the signing authority address.
