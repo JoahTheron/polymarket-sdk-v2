@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/bububa/polymarket-client/clob"
+	"github.com/JoahTheron/polymarket-sdk-v2/clob"
 )
 
 // Channel identifies the WebSocket subscription target.

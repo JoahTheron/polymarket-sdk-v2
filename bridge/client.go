@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bububa/polymarket-client/internal/polyhttp"
+	"github.com/JoahTheron/polymarket-sdk-v2/internal/polyhttp"
 )
 
 const DefaultHost = "https://bridge.polymarket.com"

@@ -3,7 +3,7 @@ package clob
 import (
 	"time"
 
-	"github.com/bububa/polymarket-client/internal/polyauth"
+	"github.com/JoahTheron/polymarket-sdk-v2/internal/polyauth"
 )
 
 // Auth stores the signer and API credentials used for authenticated CLOB requests.

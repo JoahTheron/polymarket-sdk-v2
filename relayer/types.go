@@ -1,6 +1,6 @@
 package relayer
 
-import pmtypes "github.com/bububa/polymarket-client/shared"
+import pmtypes "github.com/JoahTheron/polymarket-sdk-v2/shared"
 
 // NonceType identifies the relayer nonce domain to query.
 type NonceType string

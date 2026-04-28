@@ -1,4 +1,4 @@
-module github.com/bububa/polymarket-client
+module github.com/JoahTheron/polymarket-sdk-v2
 
 go 1.26.0
 

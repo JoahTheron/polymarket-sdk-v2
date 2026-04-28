@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bububa/polymarket-client/internal/polyauth"
-	"github.com/bububa/polymarket-client/internal/polyhttp"
+	"github.com/JoahTheron/polymarket-sdk-v2/internal/polyauth"
+	"github.com/JoahTheron/polymarket-sdk-v2/internal/polyhttp"
 )
 
 var errMissingIdentifier = errors.New("polymarket: missing identifier on output value")

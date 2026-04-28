@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bububa/polymarket-client/clob"
+	"github.com/JoahTheron/polymarket-sdk-v2/clob"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 )

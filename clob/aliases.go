@@ -1,6 +1,6 @@
 package clob
 
-import shared "github.com/bububa/polymarket-client/shared"
+import shared "github.com/JoahTheron/polymarket-sdk-v2/shared"
 
 type String = shared.String
 type Int = shared.Int

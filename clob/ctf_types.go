@@ -3,7 +3,7 @@ package clob
 import (
 	"math/big"
 
-	"github.com/bububa/polymarket-client/relayer"
+	"github.com/JoahTheron/polymarket-sdk-v2/relayer"
 	"github.com/ethereum/go-ethereum/common"
 )
 

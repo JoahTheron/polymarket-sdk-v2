@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	pmtypes "github.com/bububa/polymarket-client/shared"
+	pmtypes "github.com/JoahTheron/polymarket-sdk-v2/shared"
 )
 
 // ChainID represents an EVM/SVM chain identifier that accepts both

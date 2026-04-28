@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bububa/polymarket-client/internal/polyhttp"
+	"github.com/JoahTheron/polymarket-sdk-v2/internal/polyhttp"
 )
 
 var errMissingIdentifier = errors.New("polymarket: missing identifier on output value")

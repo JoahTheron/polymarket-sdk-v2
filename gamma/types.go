@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/url"
 
-	pmtypes "github.com/bububa/polymarket-client/shared"
+	pmtypes "github.com/JoahTheron/polymarket-sdk-v2/shared"
 )
 
 // Market describes a Gamma market.

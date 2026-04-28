@@ -13,8 +13,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/bububa/polymarket-client/internal/polyauth"
-	"github.com/bububa/polymarket-client/relayer"
+	"github.com/JoahTheron/polymarket-sdk-v2/internal/polyauth"
+	"github.com/JoahTheron/polymarket-sdk-v2/relayer"
 )
 
 var errMissingIdentifier = errors.New("polymarket: missing identifier on output value")

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/bububa/polymarket-client/internal/polyauth"
+	"github.com/JoahTheron/polymarket-sdk-v2/internal/polyauth"
 	"github.com/ethereum/go-ethereum/common"
 	ethmath "github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/signer/core/apitypes"

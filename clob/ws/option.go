@@ -1,7 +1,7 @@
 package ws
 
 import (
-	"github.com/bububa/polymarket-client/clob"
+	"github.com/JoahTheron/polymarket-sdk-v2/clob"
 	"github.com/coder/websocket"
 )
 
